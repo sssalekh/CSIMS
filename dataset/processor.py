@@ -1,6 +1,4 @@
 
-import time
-
 from dataset.loader import (
     DATASET_FILE,
     DEFAULT_BATCH_SIZE,
@@ -20,11 +18,6 @@ from storage.db import (
     get_connection,
     save_detection_results,
 )
-
-
-# How often (in seconds) enabled/disabled rule states are reloaded
-# from the database while the dataset is being processed.
-RULE_REFRESH_INTERVAL = 1.0
 
 
 def process_dataset(
@@ -94,8 +87,6 @@ def process_dataset(
     processed_records = 0
     detected_incidents = 0
     database_connection = None
-    # Rule states were loaded above, immediately before processing starts.
-    last_rule_refresh = time.monotonic()
 
     try:
         # Keep one SQLite connection open for this processing run.
@@ -118,22 +109,14 @@ def process_dataset(
                 # keep the original dataset for traceability
                 record = features.iloc[[position]]
                 
-                # Refresh rule states from the database at most once per
-                # RULE_REFRESH_INTERVAL seconds instead of for every record.
-                # A rule disabled in the meantime still cannot create an
-                # incident: save_detection_results rechecks rule states
-                # inside its write transaction.
-                now = time.monotonic()
-                if now - last_rule_refresh >= RULE_REFRESH_INTERVAL:
-                    enabled_rule_ids = get_enabled_rule_ids(
-                        rules,
-                        connection=database_connection
-                    )
-
-                    for rule in rules:
-                        rule.enabled = rule.rule_id in enabled_rule_ids
-
-                    last_rule_refresh = now
+                # can refresh if it is updated 
+                enabled_rule_ids = get_enabled_rule_ids(
+                    rules,
+                    connection=database_connection
+                )
+                
+                for rule in rules:
+                    rule.enabled = rule.rule_id in enabled_rule_ids
 
                 # ground truth labels are never passed to the engine
                 incidents = detection_engine.evaluate(record)
