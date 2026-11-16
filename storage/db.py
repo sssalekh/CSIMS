@@ -639,23 +639,30 @@ def get_enabled_rule_ids(rules, connection=None):
         connection = get_connection()
 
     try:
-        enabled_rule_ids = set()
+        rules = list(rules)
 
-        for rule in rules:
-            row = connection.execute(
-                """
-                SELECT rule_id
-                FROM detection_rules
-                WHERE name = ?
-                AND is_enabled = 1
-                """,
-                (rule.name,)
-            ).fetchone()
+        if not rules:
+            return set()
 
-            if row is not None:
-                enabled_rule_ids.add(rule.rule_id)
+        # One query for all rules instead of one query per rule.
+        placeholders = ", ".join("?" for _ in rules)
+        rows = connection.execute(
+            f"""
+            SELECT name
+            FROM detection_rules
+            WHERE is_enabled = 1
+            AND name IN ({placeholders})
+            """,
+            [rule.name for rule in rules]
+        ).fetchall()
 
-        return enabled_rule_ids
+        enabled_names = {row["name"] for row in rows}
+
+        return {
+            rule.rule_id
+            for rule in rules
+            if rule.name in enabled_names
+        }
 
     finally:
         if owns_connection:
@@ -857,23 +864,31 @@ def save_detection_results(
             
             # Recheck rule states inside the write transaction.
             # This prevents disabled rules from creating new incidents.
-            active_matched_rules = []
-            
-            for rule in matched_rules:
-                database_rule_id = rule_database_ids[rule.rule_id]
-                
-                rule_state = connection.execute(
-                    """
-                    SELECT is_enabled
+            # One query checks all matched rules.
+            matched_database_ids = [
+                rule_database_ids[rule.rule_id]
+                for rule in matched_rules
+            ]
+            placeholders = ", ".join("?" for _ in matched_database_ids)
+            enabled_database_ids = {
+                row["rule_id"]
+                for row in connection.execute(
+                    f"""
+                    SELECT rule_id
                     FROM detection_rules
-                    WHERE rule_id = ?
+                    WHERE is_enabled = 1
+                    AND rule_id IN ({placeholders})
                     """,
-                    (database_rule_id,)
-                    ).fetchone()
-                
-                if rule_state is not None and rule_state["is_enabled"] == 1:
-                    active_matched_rules.append(rule)
-                    
+                    matched_database_ids
+                ).fetchall()
+            }
+
+            active_matched_rules = [
+                rule
+                for rule in matched_rules
+                if rule_database_ids[rule.rule_id] in enabled_database_ids
+            ]
+
                     # If all matched rules were disabled, do not create an incident.
             if not active_matched_rules:
                 continue
