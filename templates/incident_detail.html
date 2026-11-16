@@ -1,0 +1,877 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Incident #{{ incident.id }} | Cybersecurity IMS</title>
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .incident-page {
+            max-width: 1450px;
+            margin: 0 auto;
+        }
+
+        .page-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 23px;
+        }
+
+        .page-heading h1 {
+            margin: 0;
+            font-size: 23px;
+        }
+
+        .page-heading p {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .incident-title-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .incident-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .detail-card {
+            background: #ffffff;
+            border: 1px solid #e5eaf1;
+            border-radius: 9px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.035);
+            padding: 20px;
+            min-width: 0;
+        }
+
+        .detail-card h2 {
+            margin: 0 0 18px;
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        .information-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .information-row {
+            display: grid;
+            grid-template-columns: 125px minmax(0, 1fr);
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #edf0f5;
+            font-size: 12px;
+        }
+
+        .information-row:last-child {
+            border-bottom: none;
+        }
+
+        .information-label {
+            color: #64748b;
+            font-weight: 600;
+        }
+
+        .information-value {
+            color: #172338;
+            overflow-wrap: anywhere;
+        }
+
+        .management-section {
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 1px solid #e5eaf1;
+        }
+
+        .management-section h3 {
+            margin: 0 0 15px;
+            font-size: 14px;
+        }
+
+        .management-form {
+            margin-bottom: 19px;
+        }
+
+        .management-form label {
+            display: block;
+            margin-bottom: 7px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .management-controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 9px;
+        }
+
+        .management-controls select {
+            min-width: 145px;
+            min-height: 36px;
+            padding: 7px 10px;
+            border: 1px solid #d5deea;
+            border-radius: 6px;
+            background: #ffffff;
+            font-size: 12px;
+        }
+
+        .rules-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .rule-card {
+            padding: 14px;
+            border: 1px solid #e5eaf1;
+            border-radius: 7px;
+            background: #ffffff;
+        }
+
+        .rule-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .rule-card h3 {
+            margin: 0;
+            font-size: 12px;
+            color: #1e3a5f;
+        }
+
+        .rule-code {
+            display: block;
+            margin-bottom: 5px;
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .rule-description {
+            margin: 9px 0;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .rule-metadata {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .rule-category {
+            padding: 4px 8px;
+            border-radius: 5px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .comments-section {
+            margin-top: 18px;
+        }
+
+        .comments-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .comments-header h2 {
+            margin: 0;
+        }
+
+        .comment-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .comment-item {
+            display: flex;
+            gap: 11px;
+            padding: 14px 0;
+            border-bottom: 1px solid #edf0f5;
+        }
+
+        .comment-item:last-child {
+            border-bottom: none;
+        }
+
+        .comment-avatar {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e0e7ff;
+            color: #4f46e5;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .comment-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-bottom: 5px;
+        }
+
+        .comment-author {
+            color: #172338;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .comment-role {
+            color: #64748b;
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .comment-date {
+            color: #94a3b8;
+            font-size: 10px;
+        }
+
+        .comment-text {
+            margin: 0;
+            color: #475569;
+            font-size: 12px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
+        }
+
+        .comment-form {
+            margin-top: 18px;
+            padding-top: 17px;
+            border-top: 1px solid #e5eaf1;
+        }
+
+        .comment-form label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .comment-form textarea {
+            width: 100%;
+            min-height: 85px;
+            padding: 11px 12px;
+            border: 1px solid #d5deea;
+            border-radius: 6px;
+            resize: vertical;
+            font-size: 12px;
+        }
+
+        .comment-form button {
+            margin-top: 10px;
+        }
+
+        .empty-comments,
+        .empty-rules {
+            padding: 25px 12px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #2563eb;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .back-link:hover {
+            color: #1d4ed8;
+        }
+
+        @media (max-width: 950px) {
+            .incident-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .page-heading {
+                flex-direction: column;
+            }
+
+            .information-row {
+                grid-template-columns: 105px minmax(0, 1fr);
+            }
+
+            .detail-card {
+                padding: 15px;
+            }
+
+            .rule-card-header {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="brand-icon">✚</div>
+
+            <div>
+                <h2>Cybersecurity IMS</h2>
+                <span>Incident Management</span>
+            </div>
+
+        </div>
+
+        <div class="sidebar-section">Main Menu</div>
+
+        <nav class="sidebar-nav">
+
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+                <span class="nav-icon">⌂</span>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('dashboard') }}"
+            class="nav-link active">
+                <span class="nav-icon">♟</span>
+                Incidents
+            </a>
+
+        </nav>
+
+        {% if session.get('role') == 'Administrator' %}
+
+            <div class="sidebar-section">Administration</div>
+
+            <nav class="sidebar-nav">
+
+                <a href="{{ url_for('admin_panel') }}" class="nav-link">
+                    <span class="nav-icon">♙</span>
+                    Users
+                </a>
+
+                <a href="{{ url_for('rules') }}" class="nav-link">
+                    <span class="nav-icon">⚙</span>
+                    Detection Rules
+                </a>
+
+            </nav>
+
+        {% endif %}
+
+        <div class="sidebar-bottom">
+
+            <div class="user-avatar">
+                {{ session.get('user', 'U')[0]|upper }}
+            </div>
+
+            <div class="user-info">
+                <strong>{{ session.get('user', 'User') }}</strong>
+                <span>{{ session.get('role', '') }}</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <button type="submit"
+                class="logout-link"
+                title="Sign out">
+                ↪
+            </button>
+        </form>
+
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+
+            <div>
+                <div class="breadcrumb">
+                    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+                    &nbsp; › &nbsp;
+                    <a href="{{ url_for('dashboard') }}">Incidents</a>
+                    &nbsp; › &nbsp;
+                    Incident #{{ incident.id }}
+                </div>
+
+                <div class="incident-title-row">
+
+                    <h1>Incident #{{ incident.id }}</h1>
+
+                    {% if incident.status == 'New' %}
+                        <span class="status-badge status-new">New</span>
+                    {% elif incident.status == 'In Progress' %}
+                        <span class="status-badge status-in-progress">In Progress</span>
+                    {% elif incident.status == 'Resolved' %}
+                        <span class="status-badge status-resolved">Resolved</span>
+                    {% elif incident.status == 'Closed' %}
+                        <span class="status-badge status-closed">Closed</span>
+                    {% endif %}
+
+                </div>
+            </div>
+
+            <div class="topbar-right">
+
+                <div class="user-avatar">
+                    {{ session.get('user', 'U')[0]|upper }}
+                </div>
+
+                <div class="user-info">
+                    <strong style="color: #172338;">
+                        {{ session.get('user', 'User') }}
+                    </strong>
+                    <span>{{ session.get('role', '') }}</span>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- PAGE CONTENT -->
+        <section class="content-area">
+
+            <div class="incident-page">
+
+                <!-- FLASH MESSAGES -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}"
+                                role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+
+                <div class="page-heading">
+
+                    <div>
+                        <h1>Incident Details</h1>
+                        <p>
+                            Review incident information and manage the
+                            investigation lifecycle.
+                        </p>
+                    </div>
+
+                    <a href="{{ url_for('dashboard') }}"
+                    class="back-link">
+                        ← Back to Incidents
+                    </a>
+
+                </div>
+
+
+                <div class="incident-layout">
+
+                    <!-- LEFT COLUMN: INFORMATION AND MANAGEMENT -->
+                    <div class="detail-card">
+
+                        <h2>Basic Information</h2>
+
+                        <div class="information-list">
+
+                            <div class="information-row">
+                                <span class="information-label">Incident ID</span>
+                                <span class="information-value">
+                                    #{{ incident.id }}
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Category</span>
+                                <span class="information-value">
+                                    {{ incident.category or 'Not classified' }}
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Severity</span>
+                                <span class="information-value">
+
+                                    {% if incident.severity == 'Critical' %}
+                                        <span class="severity-badge severity-critical">Critical</span>
+                                    {% elif incident.severity == 'High' %}
+                                        <span class="severity-badge severity-high">High</span>
+                                    {% elif incident.severity == 'Medium' %}
+                                        <span class="severity-badge severity-medium">Medium</span>
+                                    {% else %}
+                                        <span class="severity-badge severity-low">Low</span>
+                                    {% endif %}
+
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Status</span>
+                                <span class="information-value">
+                                    {{ incident.status }}
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Source Record ID</span>
+                                <span class="information-value">
+                                    {{ incident.source_record_id }}
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Detected At</span>
+                                <span class="information-value">
+                                    {{ incident.detected_at }}
+                                </span>
+                            </div>
+
+                            <div class="information-row">
+                                <span class="information-label">Description</span>
+                                <span class="information-value">
+                                    {{ incident.description or 'No description available.' }}
+                                </span>
+                            </div>
+
+                        </div>
+
+
+                        <!-- INCIDENT MANAGEMENT -->
+                        <div class="management-section">
+
+                            <h3>Incident Management</h3>
+
+                            <form
+                                method="POST"
+                                action="{{ url_for('update_severity', id=incident.id) }}"
+                                class="management-form"
+                            >
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <label for="severity">Change Severity</label>
+
+                                <div class="management-controls">
+
+                                    <select id="severity"
+                                            name="severity"
+                                            required>
+
+                                        <option value="Critical"
+                                            {% if incident.severity == 'Critical' %}selected{% endif %}>
+                                            Critical
+                                        </option>
+
+                                        <option value="High"
+                                            {% if incident.severity == 'High' %}selected{% endif %}>
+                                            High
+                                        </option>
+
+                                        <option value="Medium"
+                                            {% if incident.severity == 'Medium' %}selected{% endif %}>
+                                            Medium
+                                        </option>
+
+                                        <option value="Low"
+                                            {% if incident.severity == 'Low' %}selected{% endif %}>
+                                            Low
+                                        </option>
+
+                                    </select>
+
+                                    <button type="submit" class="btn btn-primary">
+                                        Update Severity
+                                    </button>
+
+                                </div>
+
+                            </form>
+
+
+                            <div class="management-form">
+
+                                <label>Update Incident Status</label>
+
+                                <div class="management-controls">
+
+                                    {% if incident.status == 'New' %}
+
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('update_status', id=incident.id, status='In Progress') }}"
+                                        >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            
+                                            <button type="submit"
+                                                    class="btn btn-primary">
+                                                Start Investigation
+                                            </button>
+                                        </form>
+
+                                    {% elif incident.status == 'In Progress' %}
+
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('update_status', id=incident.id, status='Resolved') }}"
+                                        >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                            <button type="submit"
+                                                    class="btn btn-primary">
+                                                Resolve Incident
+                                            </button>
+                                        </form>
+
+                                    {% elif incident.status == 'Resolved' %}
+
+                                        <form
+                                            method="POST"
+                                            action="{{ url_for('close_incident', id=incident.id) }}"
+                                        >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                            <button type="submit"
+                                                    class="btn btn-secondary">
+                                                Close Incident
+                                            </button>
+                                        </form>
+
+                                    {% elif incident.status == 'Closed' %}
+
+                                        <span class="status-badge status-closed">
+                                            This incident is closed
+                                        </span>
+
+                                    {% endif %}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- RIGHT COLUMN -->
+                    <div>
+
+                        <!-- ASSOCIATED DETECTION RULES -->
+                        <div class="detail-card">
+
+                            <h2>Associated Detection Rules</h2>
+
+                            {% if rules %}
+
+                                <div class="rules-list">
+
+                                    {% for rule in rules %}
+
+                                        <article class="rule-card">
+
+                                            <div class="rule-card-header">
+
+                                                <div>
+                                                    <span class="rule-code">
+                                                        Rule ID: {{ rule.rule_id }}
+                                                    </span>
+
+                                                    <h3>{{ rule.name }}</h3>
+                                                </div>
+
+                                                {% if rule.severity == 'Critical' %}
+                                                    <span class="severity-badge severity-critical">Critical</span>
+                                                {% elif rule.severity == 'High' %}
+                                                    <span class="severity-badge severity-high">High</span>
+                                                {% elif rule.severity == 'Medium' %}
+                                                    <span class="severity-badge severity-medium">Medium</span>
+                                                {% else %}
+                                                    <span class="severity-badge severity-low">Low</span>
+                                                {% endif %}
+
+                                            </div>
+
+                                            <p class="rule-description">
+                                                {{ rule.description or 'No description available.' }}
+                                            </p>
+
+                                            <div class="rule-metadata">
+                                                {% if rule.category %}
+                                                    <span class="rule-category">
+                                                        {{ rule.category }}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+
+                                        </article>
+
+                                    {% endfor %}
+
+                                </div>
+
+                            {% else %}
+
+                                <div class="empty-rules">
+                                    No associated detection rules found.
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        <!-- COMMENTS -->
+                        <div class="detail-card comments-section">
+
+                            <div class="comments-header">
+                                <h2>Comments</h2>
+                                <span class="incident-count">
+                                    {{ comments|length }} comments
+                                </span>
+                            </div>
+
+
+                            {% if comments %}
+
+                                <div class="comment-list">
+
+                                    {% for comment in comments %}
+
+                                        <article class="comment-item">
+
+                                            <div class="comment-avatar">
+                                                {{ (comment.username or 'U')[0]|upper }}
+                                            </div>
+
+                                            <div class="comment-content">
+
+                                                <div class="comment-header">
+
+                                                    <div>
+                                                        <span class="comment-author">
+                                                            {{ comment.username or 'Unknown user' }}
+                                                        </span>
+
+                                                        <span class="comment-role">
+                                                            {{ comment.role or 'User' }}
+                                                        </span>
+                                                    </div>
+
+                                                    <span class="comment-date">
+                                                        {{ comment.created_at }}
+                                                    </span>
+
+                                                </div>
+
+                                                <p class="comment-text">
+                                                    {{ comment.comment }}
+                                                </p>
+
+                                            </div>
+
+                                        </article>
+
+                                    {% endfor %}
+
+                                </div>
+
+                            {% else %}
+
+                                <div class="empty-comments">
+                                    No comments yet. Add the first investigation note.
+                                </div>
+
+                            {% endif %}
+
+
+                            <!-- ADD COMMENT -->
+                            <form
+                                method="POST"
+                                action="{{ url_for('add_comment', id=incident.id) }}"
+                                class="comment-form"
+                            >
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <label for="comment">
+                                    Add Investigation Comment
+                                </label>
+
+                                <textarea
+                                    id="comment"
+                                    name="comment"
+                                    placeholder="Document investigation findings..."
+                                    required
+                                ></textarea>
+
+                                <button type="submit"
+                                        class="btn btn-primary">
+                                    + Add Comment
+                                </button>
+
+                            </form>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+</body>
+</html>

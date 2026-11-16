@@ -1,0 +1,48 @@
+CSIMS DETECTION RULE CALIBRATION
+================================
+
+Dataset: UNSW-NB15_1.csv
+Random seed: 2026
+Total records: 700,001
+
+DATA SPLIT
+----------
+Complete feature rows were kept in one split.
+The split assignment considered row count, attack count and normal count.
+Label and attack_cat were not included in feature grouping.
+Groups with conflicting Label values: 0
+
+GROUND TRUTH
+------------
+Label was used only for split balancing and evaluation.
+The Detection Engine received feature columns only.
+attack_cat was not used for threshold selection.
+
+THRESHOLD SELECTION
+-------------------
+Candidate values were calculated from Calibration features.
+Validation was used to select thresholds.
+Each rule was constrained not to exceed its baseline Validation FPR.
+Test was not used for candidate generation or threshold selection.
+
+TEST RESULTS — ALL RULES
+-------------------------
+Baseline: TP=912, FP=10,724, TN=124,833, FN=3,531
+Precision=7.8377%; Recall=20.5267%; F1=11.3440%; FPR=7.9111%; Accuracy=89.8179%
+Proposed: TP=3,417, FP=9,464, TN=126,093, FN=1,026
+Precision=26.5274%; Recall=76.9075%; F1=39.4482%; FPR=6.9816%; Accuracy=92.5071%
+
+NOTES
+-----
+Each source record is counted once in the overall result, even if
+more than one detection rule matches it.
+Individual rule metrics are binary attack-versus-normal results.
+The script uses the real conditions from detection/rules.py.
+A small consistency check compares rule predictions with DetectionEngine.
+Groups with conflicting Label values are listed separately.
+A deterministic feature-only rule cannot assign different predictions
+to identical feature rows, even when their dataset labels conflict.
+The split prevents exact complete-feature duplicates from crossing parts.
+It does not prove independence between related network flows.
+The proposed thresholds are not copied into detection/config.py.
+Do not choose thresholds again based on Test results.

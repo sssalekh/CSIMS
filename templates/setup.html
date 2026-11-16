@@ -1,0 +1,145 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Initial Setup | Cybersecurity IMS</title>
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="login-page">
+
+    <main class="login-box">
+
+        <!-- System Logo -->
+        <div style="margin-bottom: 18px;">
+
+            <svg
+                width="68"
+                height="68"
+                viewBox="0 0 64 64"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+            >
+                <path
+                    d="M32 5L53 13V29C53 43 44 53 32 59C20 53 11 43 11 29V13L32 5Z"
+                    stroke="#2563EB"
+                    stroke-width="4.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+
+                <path
+                    d="M32 21V39"
+                    stroke="#2563EB"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                />
+
+                <path
+                    d="M23 30H41"
+                    stroke="#2563EB"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                />
+            </svg>
+
+        </div>
+
+        <h1>
+            Cybersecurity Incident<br>
+            Management System
+        </h1>
+
+        <h3>Initial Administrator Setup</h3>
+
+        <p>
+            Create the first administrator account to initialize the system.
+        </p>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Administrator Registration -->
+        <form method="POST" action="{{ url_for('initial_setup') }}">
+            
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div style="margin-bottom: 16px; text-align: left;">
+
+                <label for="username">Username</label>
+
+                <input
+                    id="username"
+                    type="text"
+                    name="username"
+                    placeholder="Enter your username"
+                    required
+                    maxlength="50"
+                    autocomplete="username"
+                    style="width: 100%; padding: 12px 14px;"
+                >
+
+            </div>
+
+            <div style="margin-bottom: 16px; text-align: left;">
+
+                <label for="password">Password</label>
+
+                <input
+                    id="password"
+                    type="password"
+                    name="password"
+                    placeholder="Create a password"
+                    required
+                    minlength="8"
+                    autocomplete="new-password"
+                    style="width: 100%; padding: 12px 14px;"
+                >
+
+            </div>
+
+            <div style="margin-bottom: 22px; text-align: left;">
+
+                <label for="confirm_password">Confirm Password</label>
+
+                <input
+                    id="confirm_password"
+                    type="password"
+                    name="confirm_password"
+                    placeholder="Confirm your password"
+                    required
+                    minlength="8"
+                    autocomplete="new-password"
+                    style="width: 100%; padding: 12px 14px;"
+                >
+
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Create Administrator
+            </button>
+
+        </form>
+
+    </main>
+
+</div>
+
+</body>
+</html>

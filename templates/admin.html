@@ -1,0 +1,676 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>User Management | Cybersecurity IMS</title>
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .admin-page {
+            max-width: 1450px;
+            margin: 0 auto;
+        }
+
+        .page-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .page-heading h1 {
+            margin: 0;
+            font-size: 23px;
+        }
+
+        .page-heading p {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: minmax(260px, 0.8fr) minmax(0, 2fr);
+            gap: 18px;
+            align-items: start;
+        }
+
+        .admin-card {
+            min-width: 0;
+            padding: 22px;
+            background: #ffffff;
+            border: 1px solid #e5eaf1;
+            border-radius: 9px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.035);
+        }
+
+        .admin-card h2 {
+            margin: 0 0 6px;
+            font-size: 16px;
+            font-weight: 650;
+        }
+
+        .card-description {
+            margin: 0 0 22px;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 17px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 7px;
+            color: #475569;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            min-height: 40px;
+            padding: 9px 11px;
+            border: 1px solid #d5deea;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #172338;
+            font-size: 12px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .create-button {
+            width: 100%;
+            min-height: 40px;
+            margin-top: 5px;
+        }
+
+        .users-card {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .users-card-header {
+            padding: 20px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid #e5eaf1;
+        }
+
+        .users-card-header h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .users-card-header p {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        .user-count {
+            padding: 6px 10px;
+            border-radius: 5px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .users-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .users-table th {
+            padding: 13px 15px;
+            background: #f8fafc;
+            color: #64748b;
+            border-bottom: 1px solid #e5eaf1;
+            font-size: 10px;
+            font-weight: 700;
+            text-align: left;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        .users-table td {
+            padding: 14px 15px;
+            border-bottom: 1px solid #edf0f5;
+            color: #475569;
+            font-size: 12px;
+            vertical-align: middle;
+        }
+
+        .users-table tbody tr:hover {
+            background: #f8fbff;
+        }
+
+        .users-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .user-identity {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-table-avatar {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #e0e7ff;
+            color: #4338ca;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .user-name {
+            color: #172338;
+            font-weight: 600;
+        }
+
+        .role-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 9px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .role-administrator {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .role-analyst {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .role-form {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .role-form select {
+            min-height: 33px;
+            min-width: 140px;
+            padding: 6px 8px;
+            border: 1px solid #d5deea;
+            border-radius: 5px;
+            background: #ffffff;
+            font-size: 11px;
+        }
+
+        .current-account {
+            display: inline-block;
+            padding: 6px 9px;
+            border-radius: 5px;
+            background: #f1f5f9;
+            color: #64748b;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .delete-button {
+            min-height: 31px;
+            padding: 6px 10px;
+            border: 1px solid #fecaca;
+            border-radius: 5px;
+            background: #ffffff;
+            color: #dc2626;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .delete-button:hover {
+            background: #fee2e2;
+        }
+
+        .users-empty {
+            padding: 35px 20px !important;
+            text-align: center;
+            color: #94a3b8 !important;
+        }
+
+        .table-scroll {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        @media (max-width: 1050px) {
+            .admin-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .create-user-card {
+                max-width: none;
+            }
+        }
+
+        @media (max-width: 650px) {
+            .page-heading {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .admin-card {
+                padding: 16px;
+            }
+
+            .users-card {
+                padding: 0;
+            }
+
+            .users-card-header {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="brand-icon">✚</div>
+
+            <div>
+                <h2>Cybersecurity IMS</h2>
+                <span>Incident Management</span>
+            </div>
+
+        </div>
+
+        <div class="sidebar-section">Main Menu</div>
+
+        <nav class="sidebar-nav">
+
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+                <span class="nav-icon">⌂</span>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+                <span class="nav-icon">♟</span>
+                Incidents
+            </a>
+
+        </nav>
+
+        <div class="sidebar-section">Administration</div>
+
+        <nav class="sidebar-nav">
+
+            <a href="{{ url_for('admin_panel') }}"
+            class="nav-link active">
+                <span class="nav-icon">♙</span>
+                Users
+            </a>
+
+            <a href="{{ url_for('rules') }}" class="nav-link">
+                <span class="nav-icon">⚙</span>
+                Detection Rules
+            </a>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+
+            <div class="user-avatar">
+                {{ session.get('user', 'U')[0]|upper }}
+            </div>
+
+            <div class="user-info">
+                <strong>{{ session.get('user', 'User') }}</strong>
+                <span>{{ session.get('role', '') }}</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                    class="logout-link"
+                    title="Sign out">
+                ↪
+            </button>
+        </form>
+
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+
+            <div>
+                <div class="breadcrumb">
+                    Dashboard &nbsp; › &nbsp; Administration &nbsp; › &nbsp; Users
+                </div>
+
+                <h1>User Management</h1>
+            </div>
+
+            <div class="topbar-right">
+
+                <div class="user-avatar">
+                    {{ session.get('user', 'U')[0]|upper }}
+                </div>
+
+                <div class="user-info">
+                    <strong style="color: #172338;">
+                        {{ session.get('user', 'User') }}
+                    </strong>
+                    <span>{{ session.get('role', '') }}</span>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- PAGE CONTENT -->
+        <section class="content-area">
+
+            <div class="admin-page">
+
+                <!-- FLASH MESSAGES -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}"
+                                role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+
+                <div class="page-heading">
+
+                    <div>
+                        <h1>User Management</h1>
+                        <p>
+                            Create user accounts and manage system roles.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <div class="admin-grid">
+
+                    <!-- CREATE USER -->
+                    <section class="admin-card create-user-card">
+
+                        <h2>Create User</h2>
+
+                        <p class="card-description">
+                            Add a new account to the Cybersecurity Incident
+                            Management System.
+                        </p>
+
+                        <form method="POST"
+                            action="{{ url_for('add_user') }}">
+
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            <div class="form-group">
+
+                                <label for="username">Username</label>
+
+                                <input
+                                    id="username"
+                                    type="text"
+                                    name="username"
+                                    placeholder="Enter username"
+                                    required
+                                    autocomplete="off"
+                                >
+                        </div>
+
+                        <div class="form-group">
+
+                            <label for="password">Password</label>
+
+                            <input
+                                id="password"
+                                type="password"
+                                name="password"
+                                placeholder="Enter password"
+                                required
+                                autocomplete="new-password"
+                            >
+
+                        </div>
+
+                        <div class="form-group">
+
+                            <label for="role">User Role</label>
+
+                            <select id="role" name="role" required>
+
+                                <option value="Security Analyst">
+                                    Security Analyst
+                                </option>
+
+                                <option value="Administrator">
+                                    Administrator
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                        <button type="submit"
+                            class="btn btn-primary create-button">
+                            + Create User
+                        </button>
+
+                    </form>
+
+                    </section>
+
+
+                    <!-- USERS TABLE -->
+                    <section class="admin-card users-card">
+
+                        <div class="users-card-header">
+
+                            <div>
+                                <h2>System Users</h2>
+                                <p>Manage registered user accounts and roles.</p>
+                            </div>
+
+                            <span class="user-count">
+                                {{ users|length }} users
+                            </span>
+
+                        </div>
+
+
+                        <div class="table-scroll">
+
+                            <table class="users-table">
+
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>User</th>
+                                        <th>Role</th>
+                                        <th>Update Role</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    {% for u in users %}
+
+                                        <tr>
+
+                                            <td>#{{ u.id }}</td>
+
+                                            <td>
+                                                <div class="user-identity">
+
+                                                    <div class="user-table-avatar">
+                                                        {{ u.username[0]|upper }}
+                                                    </div>
+
+                                                    <span class="user-name">
+                                                        {{ u.username }}
+                                                    </span>
+
+                                                </div>
+                                            </td>
+
+                                            <td>
+
+                                                {% if u.role == 'Administrator' %}
+                                                    <span class="role-badge role-administrator">
+                                                        Administrator
+                                                    </span>
+                                                {% else %}
+                                                    <span class="role-badge role-analyst">
+                                                        Security Analyst
+                                                    </span>
+                                                {% endif %}
+
+                                            </td>
+
+                                            <td>
+
+                                                <form
+                                                    method="POST"
+                                                    action="{{ url_for('update_user_role', id=u.id) }}"
+                                                    class="role-form"
+                                                >
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                                    <select name="role" required>
+
+                                                        <option
+                                                            value="Security Analyst"
+                                                            {% if u.role == 'Security Analyst' %}selected{% endif %}
+                                                        >
+                                                            Security Analyst
+                                                        </option>
+
+                                                        <option value="Administrator"
+                                                            {% if u.role == 'Administrator' %}selected{% endif %}
+                                                        >
+                                                            Administrator
+                                                        </option>
+
+                                                    </select>
+
+                                                    <button type="submit"
+                                                        class="btn btn-primary">
+                                                        Update
+                                                    </button>
+
+                                                </form>
+
+                                            </td>
+
+                                            <td>
+
+                                                {% if u.id != session.get('user_id') %}
+
+                                                    <form
+                                                        method="POST"
+                                                        action="{{ url_for('delete_user_route', id=u.id) }}"
+                                                        onsubmit="return confirm('Are you sure you want to delete this user?');"
+                                                    >
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                                        <button
+                                                            type="submit"
+                                                            class="delete-button"
+                                                        >
+                                                            Delete
+                                                        </button>
+
+                                                    </form>
+
+                                                {% else %}
+
+                                                    <span class="current-account">
+                                                        Current account
+                                                    </span>
+
+                                                {% endif %}
+
+                                            </td>
+
+                                        </tr>
+
+                                    {% else %}
+
+                                        <tr>
+                                            <td colspan="5" class="users-empty">
+                                                No users found.
+                                            </td>
+                                        </tr>
+
+                                    {% endfor %}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </section>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+</body>
+</html>

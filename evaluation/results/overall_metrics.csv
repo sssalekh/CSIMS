@@ -1,0 +1,2 @@
+﻿evaluation,TP,FP,TN,FN,total_records,precision,recall,f1_score,false_positive_rate,accuracy
+Overall — all five rules,3873,29921,647865,18342,700001,0.11460614310232585,0.17434166103983795,0.1382992019139781,0.04414520217295725,0.9310529556386348

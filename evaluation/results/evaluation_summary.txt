@@ -1,0 +1,73 @@
+CSIMS Detection Evaluation
+=========================
+
+Dataset: UNSW-NB15
+Records evaluated: 700,001
+Detection input: feature columns only.
+Ground truth: Label (0 = Normal, 1 = Attack).
+attack_cat is used only after detection for attack-category analysis.
+All five configured rules are included in this offline evaluation,
+regardless of runtime enable/disable toggles.
+
+LEVEL 1 — OVERALL BINARY EVALUATION
+------------------------------------
+TP: 3,873
+FP: 29,921
+TN: 647,865
+FN: 18,342
+Precision: 11.46%
+Recall: 17.43%
+F1-score: 13.83%
+False Positive Rate: 4.41%
+Accuracy: 93.11%
+
+LEVEL 2 — INDIVIDUAL RULE EVALUATION
+-------------------------------------
+Each rule is evaluated independently against binary Label.
+
+DOS-001 — High network traffic
+  TP=3,143, FP=11,582, TN=666,204, FN=19,072
+  Precision=21.34%; Recall=14.15%; F1=17.02%; FPR=1.71%
+
+REC-001 — Repeated communication pattern
+  TP=200, FP=8,229, TN=669,557, FN=22,015
+  Precision=2.37%; Recall=0.90%; F1=1.31%; FPR=1.21%
+
+EXP-001 — Unusual application-level activity
+  TP=0, FP=4,076, TN=673,710, FN=22,215
+  Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.60%
+
+GEN-001 — High data transfer volume
+  TP=668, FP=6,434, TN=671,352, FN=21,547
+  Precision=9.41%; Recall=3.01%; F1=4.56%; FPR=0.95%
+
+CON-001 — High connection frequency
+  TP=0, FP=3,994, TN=673,792, FN=22,215
+  Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.59%
+
+LEVEL 3 — ATTACK-CATEGORY ANALYSIS
+-----------------------------------
+All rules are considered together. Detection rate is calculated within
+each UNSW-NB15 attack_cat group. No one-to-one mapping between a CSIMS
+rule and an UNSW-NB15 attack category is assumed.
+
+Analysis: 190/526 detected (36.12%); 336 missed
+Backdoors: 192/534 detected (35.96%); 342 missed
+DoS: 300/1,167 detected (25.71%); 867 missed
+Exploits: 876/5,409 detected (16.20%); 4,533 missed
+Fuzzers: 1,137/5,051 detected (22.51%); 3,914 missed
+Generic: 886/7,522 detected (11.78%); 6,636 missed
+Reconnaissance: 226/1,759 detected (12.85%); 1,533 missed
+Shellcode: 64/223 detected (28.70%); 159 missed
+Worms: 2/24 detected (8.33%); 22 missed
+ALL_ATTACKS: 3,873/22,215 detected (17.43%); 18,342 missed
+
+INTERPRETATION NOTES
+--------------------
+- Overall predictions count each source record once, even if several rules match.
+- Individual rule results are one-vs-rest binary metrics, not attack-subtype accuracy.
+- attack_cat analysis describes coverage by dataset subtype; it does not establish
+  that a particular CSIMS rule uniquely detects that subtype.
+- GEN-001 and CON-001 retain the CSIMS category 'Other suspicious activity'.
+- These results evaluate the current configured thresholds on this dataset; they are
+  not an independent holdout estimate of performance on unseen traffic.

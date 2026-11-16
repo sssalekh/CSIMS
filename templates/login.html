@@ -1,0 +1,122 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Sign In | Cybersecurity IMS</title>
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<div class="login-page">
+
+    <main class="login-box">
+
+        <div style="margin-bottom: 18px;">
+
+            <svg
+                width="68"
+                height="68"
+                viewBox="0 0 64 64"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+            >
+                <path
+                    d="M32 5L53 13V29C53 43 44 53 32 59C20 53 11 43 11 29V13L32 5Z"
+                    stroke="#2563EB"
+                    stroke-width="4.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+                <path
+                    d="M32 21V39"
+                    stroke="#2563EB"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                />
+                <path
+                    d="M23 30H41"
+                    stroke="#2563EB"
+                    stroke-width="5"
+                    stroke-linecap="round"
+                />
+            </svg>
+
+        </div>
+
+        <h1>
+            Cybersecurity Incident<br>
+            Management System
+        </h1>
+
+        <p>Sign in to your account</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}">
+            
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div style="margin-bottom: 17px;">
+
+                <label for="username">Username</label>
+
+                <div style="position: relative;">
+
+                    <input
+                        id="username"
+                        type="text"
+                        name="username"
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                        required
+                        autofocus
+                        style="width: 100%; padding: 12px 14px;"
+                    >
+
+                </div>
+
+            </div>
+
+            <div style="margin-bottom: 22px;">
+
+                <label for="password">Password</label>
+
+                <input
+                    id="password"
+                    type="password"
+                    name="password"
+                    placeholder="Enter your password"
+                    autocomplete="current-password"
+                    required
+                    style="width: 100%; padding: 12px 14px;"
+                >
+
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                Sign In
+            </button>
+
+        </form>
+
+    </main>
+
+</div>
+
+</body>
+</html>

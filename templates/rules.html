@@ -1,0 +1,548 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Detection Rules | Cybersecurity IMS</title>
+
+    <link rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .rules-page {
+            max-width: 1450px;
+            margin: 0 auto;
+        }
+
+        .page-heading {
+            margin-bottom: 23px;
+        }
+
+        .page-heading h1 {
+            margin: 0;
+            font-size: 23px;
+        }
+
+        .page-heading p {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .rules-card {
+            background: #ffffff;
+            border: 1px solid #e5eaf1;
+            border-radius: 9px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.035);
+            overflow: hidden;
+        }
+
+        .rules-card-header {
+            padding: 20px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border-bottom: 1px solid #e5eaf1;
+        }
+
+        .rules-card-header h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .rules-card-header p {
+            margin: 5px 0 0;
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        .rules-count {
+            padding: 6px 10px;
+            border-radius: 5px;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .rules-table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .rules-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .rules-table th {
+            padding: 14px 15px;
+            background: #f8fafc;
+            color: #64748b;
+            border-bottom: 1px solid #e5eaf1;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        .rules-table td {
+            padding: 15px;
+            border-bottom: 1px solid #edf0f5;
+            color: #475569;
+            font-size: 12px;
+            vertical-align: middle;
+        }
+
+        .rules-table tbody tr:hover {
+            background: #f8fbff;
+        }
+
+        .rules-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .rule-code {
+            display: inline-block;
+            color: #64748b;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .rule-name {
+            color: #172338;
+            font-weight: 650;
+        }
+
+        .rule-description {
+            min-width: 190px;
+            max-width: 300px;
+            color: #64748b;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+
+        .category-badge {
+            display: inline-block;
+            max-width: 190px;
+            padding: 5px 8px;
+            border-radius: 5px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 10px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .rule-state {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 9px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .rule-state.enabled {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .rule-state.disabled {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+
+        .rule-state-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .rule-action-form {
+            margin: 0;
+        }
+
+        .rule-action-button {
+            min-width: 82px;
+            min-height: 31px;
+            padding: 6px 10px;
+            border-radius: 5px;
+            background: #ffffff;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .rule-action-button.disable {
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
+
+        .rule-action-button.disable:hover {
+            background: #fee2e2;
+        }
+
+        .rule-action-button.enable {
+            border: 1px solid #bbf7d0;
+            color: #15803d;
+        }
+
+        .rule-action-button.enable:hover {
+            background: #dcfce7;
+        }
+
+        .rules-empty {
+            padding: 40px 20px !important;
+            text-align: center;
+            color: #94a3b8 !important;
+        }
+
+        .rules-footer {
+            padding: 13px 20px;
+            border-top: 1px solid #e5eaf1;
+            color: #94a3b8;
+            font-size: 11px;
+        }
+
+        @media (max-width: 650px) {
+            .rules-card-header {
+                padding: 16px;
+            }
+
+            .rules-table th,
+            .rules-table td {
+                padding: 11px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="sidebar-brand">
+
+            <div class="brand-icon">✚</div>
+
+            <div>
+                <h2>Cybersecurity IMS</h2>
+                <span>Incident Management</span>
+            </div>
+
+        </div>
+
+        <div class="sidebar-section">Main Menu</div>
+
+        <nav class="sidebar-nav">
+
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+                <span class="nav-icon">⌂</span>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('dashboard') }}" class="nav-link">
+                <span class="nav-icon">♟</span>
+                Incidents
+            </a>
+
+        </nav>
+
+        <div class="sidebar-section">Administration</div>
+
+        <nav class="sidebar-nav">
+
+            <a href="{{ url_for('admin_panel') }}" class="nav-link">
+                <span class="nav-icon">♙</span>
+                Users
+            </a>
+
+            <a href="{{ url_for('rules') }}" class="nav-link active">
+                <span class="nav-icon">⚙</span>
+                Detection Rules
+            </a>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+
+            <div class="user-avatar">
+                {{ session.get('user', 'U')[0]|upper }}
+            </div>
+
+            <div class="user-info">
+                <strong>{{ session.get('user', 'User') }}</strong>
+                <span>{{ session.get('role', '') }}</span>
+            </div>
+
+            <form method="POST" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <button type="submit"
+                    class="logout-link"
+                    title="Sign out">
+                    ↪
+                </button>
+            </form>
+
+        </div>
+
+    </aside>
+
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+        <!-- TOPBAR -->
+        <header class="topbar">
+
+            <div>
+                <div class="breadcrumb">
+                    Dashboard &nbsp; › &nbsp; Administration &nbsp; › &nbsp; Detection Rules
+                </div>
+
+                <h1>Detection Rule Management</h1>
+            </div>
+
+            <div class="topbar-right">
+
+                <div class="user-avatar">
+                    {{ session.get('user', 'U')[0]|upper }}
+                </div>
+
+                <div class="user-info">
+                    <strong style="color: #172338;">
+                        {{ session.get('user', 'User') }}
+                    </strong>
+                    <span>{{ session.get('role', '') }}</span>
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- PAGE CONTENT -->
+        <section class="content-area">
+
+            <div class="rules-page">
+
+                <!-- FLASH MESSAGES -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}"
+                                role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+
+                <div class="page-heading">
+
+                    <h1>Detection Rules</h1>
+
+                    <p>
+                        View detection rule configurations and manage
+                        their enabled or disabled state.
+                    </p>
+
+                </div>
+
+
+                <!-- RULES TABLE -->
+                <section class="rules-card">
+
+                    <div class="rules-card-header">
+
+                        <div>
+                            <h2>Registered Detection Rules</h2>
+                            <p>
+                                Detection rules configured in the system.
+                            </p>
+                        </div>
+
+                        <span class="rules-count">
+                            {{ rules|length }} rules
+                        </span>
+
+                    </div>
+
+
+                    <div class="rules-table-wrapper">
+
+                        <table class="rules-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Rule Code</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Category</th>
+                                    <th>Initial Severity</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                {% for r in rules %}
+
+                                    <tr>
+
+                                        <td>
+                                            <span class="rule-code">
+                                                {{ r.id }}
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            <span class="rule-name">
+                                                {{ r.name }}
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            <div class="rule-description">
+                                                {{ r.description or 'No description available.' }}
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            <span class="category-badge">
+                                                {{ r.category or 'Not assigned' }}
+                                            </span>
+                                        </td>
+
+                                        <td>
+
+                                            {% if r.severity == 'Critical' %}
+                                                <span class="severity-badge severity-critical">
+                                                    Critical
+                                                </span>
+                                            {% elif r.severity == 'High' %}
+                                                <span class="severity-badge severity-high">
+                                                    High
+                                                </span>
+                                            {% elif r.severity == 'Medium' %}
+                                                <span class="severity-badge severity-medium">
+                                                    Medium
+                                                </span>
+                                            {% else %}
+                                                <span class="severity-badge severity-low">
+                                                    Low
+                                                </span>
+                                            {% endif %}
+
+                                        </td>
+
+                                        <td>
+
+                                            {% if r.is_enabled %}
+
+                                                <span class="rule-state enabled">
+                                                    <span class="rule-state-dot"></span>
+                                                    Enabled
+                                                </span>
+
+                                            {% else %}
+
+                                                <span class="rule-state disabled">
+                                                    <span class="rule-state-dot"></span>
+                                                    Disabled
+                                                </span>
+
+                                            {% endif %}
+
+                                        </td>
+
+                                        <td>
+
+                                            
+                                            <form
+                                                method="POST"
+                                                action="{{ url_for('toggle_rule', id=r.id) }}"
+                                                class="rule-action-form"
+                                                onsubmit="return confirm('Change the status of this detection rule?');"
+                                            >
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+
+                                                {% if r.is_enabled %}
+
+                                                    <button
+                                                        type="submit"
+                                                        class="rule-action-button disable"
+                                                    >
+                                                        Disable
+                                                    </button>
+
+                                                {% else %}
+
+                                                    <button
+                                                        type="submit"
+                                                        class="rule-action-button enable"
+                                                    >
+                                                        Enable
+                                                    </button>
+
+                                                {% endif %}
+
+                                            </form>
+
+                                        </td>
+
+                                    </tr>
+
+                                {% else %}
+
+                                    <tr>
+                                        <td colspan="7" class="rules-empty">
+                                            No detection rules found.
+                                        </td>
+                                    </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                    <div class="rules-footer">
+                        Rule configuration changes affect future detection
+                        processing. Previously created incidents are preserved.
+                    </div>
+
+                </section>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+</body>
+</html>
