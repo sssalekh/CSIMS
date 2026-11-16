@@ -1,40 +1,50 @@
-
 import math
 from numbers import Real
 
+import pandas as pd
+
+from detection.config import STANDARD_PROTOCOLS
 from detection.engine import DetectionRule
 
 
-def build_detection_rules(
-    thresholds: dict
-) -> list[DetectionRule]:
+REQUIRED_THRESHOLDS = (
+    "dos_sload",
+    "rec_max_dbytes",
+    "exp_tcprtt",
+    "con_dns_max_sbytes",
+)
+
+
+def _number(df: pd.DataFrame, column: str) -> pd.Series:
+    """Return a numeric feature; non-numeric values become missing."""
+    return pd.to_numeric(df[column], errors="coerce")
+
+
+def _normalise_text(value):
+    if isinstance(value, str):
+        return value.strip().lower()
+    return None
+
+
+def _text(df: pd.DataFrame, column: str) -> pd.Series:
     """
-    Build deterministic detection rules using configured thresholds.
+    Return a nominal feature in lower case without extra whitespace.
 
-    Dataset ground-truth fields (Label and attack_cat)
-    are not used by the detection rules.
-
-    Initial incident categories and severity follow
-    Table 4 of the thesis.
+    Missing and non-text values become None and therefore never match.
+    A plain element-wise conversion is used because the application
+    evaluates records one at a time, where it is faster than the pandas
+    string accessor.
     """
+    return df[column].map(_normalise_text)
 
-    required_thresholds = {
-        "dos_sload",
-        "dos_spkts",
-        "rec_ct_dst_src_ltm",
-        "exp_trans_depth",
-        "exp_http_methods",
-        "gen_sbytes",
-        "con_ct_srv_src",
-        "con_ct_src_ltm"
-    }
 
+def _validate_thresholds(thresholds: dict) -> None:
     if not isinstance(thresholds, dict):
         raise TypeError(
             "Thresholds must be provided as a dictionary."
         )
 
-    missing = required_thresholds - thresholds.keys()
+    missing = set(REQUIRED_THRESHOLDS) - thresholds.keys()
 
     if missing:
         raise ValueError(
@@ -42,8 +52,7 @@ def build_detection_rules(
             + ", ".join(sorted(missing))
         )
 
-    for name in required_thresholds:
-
+    for name in REQUIRED_THRESHOLDS:
         value = thresholds[name]
 
         if (
@@ -57,6 +66,27 @@ def build_detection_rules(
                 "non-negative number."
             )
 
+
+def build_detection_rules(
+    thresholds: dict,
+    standard_protocols=STANDARD_PROTOCOLS,
+) -> list[DetectionRule]:
+    """
+    Build deterministic detection rules using configured thresholds.
+
+    Each rule describes an observable network behaviour. Dataset
+    ground-truth fields (Label and attack_cat) are never used. Features
+    that only identify the test-bed hosts (IP addresses, ports, TTL values
+    and timestamps) are deliberately not used either.
+
+    Initial incident categories and severity follow Table 4 of the thesis.
+    """
+
+    _validate_thresholds(thresholds)
+    standard_protocols = frozenset(
+        str(protocol).strip().lower() for protocol in standard_protocols
+    )
+
     rules = [
 
         # DOS / DDoS
@@ -65,19 +95,16 @@ def build_detection_rules(
             rule_id="DOS-001",
             name="High network traffic",
             description=(
-                "Detects records with unusually high source traffic "
-                "or packet volume."
+                "Detects flows whose source sends traffic at an unusually "
+                "high rate (source load in bits per second)."
             ),
             severity="High",
             category="Dos / DDoS",
             required_features=(
                 "Sload",
-                "Spkts"
             ),
             condition=lambda df: (
-                (df["Sload"] >= thresholds["dos_sload"])
-                |
-                (df["Spkts"] >= thresholds["dos_spkts"])
+                _number(df, "Sload") >= thresholds["dos_sload"]
             )
         ),
 
@@ -85,19 +112,23 @@ def build_detection_rules(
         # Initial severity: Low
         DetectionRule(
             rule_id="REC-001",
-            name="Repeated communication pattern",
+            name="Unanswered connection attempt",
             description=(
-                "Detects unusually frequent communication patterns "
-                "between source and destination."
+                "Detects non-DNS connection attempts that were not "
+                "completed and received no data from the destination, "
+                "which is typical of scanning and probing."
             ),
             severity="Low",
             category="Reconnaissance",
             required_features=(
-                "ct_dst_src_ltm",
+                "state",
+                "dbytes",
+                "service",
             ),
             condition=lambda df: (
-                df["ct_dst_src_ltm"]
-                >= thresholds["rec_ct_dst_src_ltm"]
+                (_text(df, "state") == "int")
+                & (_number(df, "dbytes") <= thresholds["rec_max_dbytes"])
+                & (_text(df, "service") != "dns")
             )
         ),
 
@@ -105,24 +136,21 @@ def build_detection_rules(
         # Initial severity: Critical
         DetectionRule(
             rule_id="EXP-001",
-            name="Unusual application-level activity",
+            name="Abnormal TCP handshake delay",
             description=(
-                "Detects records with elevated HTTP transaction depth "
-                "and HTTP method activity."
+                "Detects TCP connections whose set-up round-trip time is "
+                "unusually long, which may indicate exploitation tools or "
+                "malformed traffic interacting with the target service."
             ),
             severity="Critical",
             category="Exploitation",
             required_features=(
-                "trans_depth",
-                "ct_flw_http_mthd"
+                "proto",
+                "tcprtt",
             ),
             condition=lambda df: (
-                (df["trans_depth"] >= thresholds["exp_trans_depth"])
-                &
-                (
-                    df["ct_flw_http_mthd"]
-                    >= thresholds["exp_http_methods"]
-                )
+                (_text(df, "proto") == "tcp")
+                & (_number(df, "tcprtt") >= thresholds["exp_tcprtt"])
             )
         ),
 
@@ -130,17 +158,23 @@ def build_detection_rules(
         # Initial severity: Medium
         DetectionRule(
             rule_id="GEN-001",
-            name="High data transfer volume",
+            name="Non-standard network protocol",
             description=(
-                "Detects records with unusually high source byte volume."
+                "Detects traffic that uses a network protocol not "
+                "expected in an ordinary small-business network."
             ),
             severity="Medium",
             category="Other suspicious activity",
             required_features=(
-                "sbytes",
+                "proto",
             ),
             condition=lambda df: (
-                df["sbytes"] >= thresholds["gen_sbytes"]
+                _text(df, "proto").map(
+                    lambda value: (
+                        value is not None
+                        and value not in standard_protocols
+                    )
+                ).astype(bool)
             )
         ),
 
@@ -148,26 +182,24 @@ def build_detection_rules(
         # Initial severity: Medium
         DetectionRule(
             rule_id="CON-001",
-            name="High connection frequency",
+            name="Unanswered short DNS request",
             description=(
-                "Detects unusually frequent connections from "
-                "the same source."
+                "Detects short DNS requests that received no response, "
+                "which may indicate automated DNS probing or abuse."
             ),
             severity="Medium",
             category="Other suspicious activity",
             required_features=(
-                "ct_srv_src",
-                "ct_src_ltm"
+                "service",
+                "state",
+                "sbytes",
             ),
             condition=lambda df: (
-                (
-                    df["ct_srv_src"]
-                    >= thresholds["con_ct_srv_src"]
-                )
-                &
-                (
-                    df["ct_src_ltm"]
-                    >= thresholds["con_ct_src_ltm"]
+                (_text(df, "service") == "dns")
+                & (_text(df, "state") == "int")
+                & (
+                    _number(df, "sbytes")
+                    <= thresholds["con_dns_max_sbytes"]
                 )
             )
         )

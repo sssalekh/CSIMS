@@ -1,0 +1,6 @@
+{
+    "dos_sload": 10000000.0,
+    "rec_max_dbytes": 0.0,
+    "exp_tcprtt": 0.05,
+    "con_dns_max_sbytes": 100.0
+}
