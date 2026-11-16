@@ -270,6 +270,11 @@ def initial_setup():
 @app.route("/", methods=["GET", "POST"])
 def login():
 
+    # Until the first Administrator account is created, nobody can log in,
+    # so the user is sent to the initial setup page (FR-17).
+    if not administrator_account_exists():
+        return redirect(url_for("initial_setup"))
+
     if "user_id" in session:
         return redirect(url_for("dashboard"))
 
