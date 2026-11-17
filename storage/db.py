@@ -496,7 +496,7 @@ def delete_user(user_id):
 
         user = connection.execute(
             """
-            SELECT user_id, role
+            SELECT user_id, role, is_active
             FROM users
             WHERE user_id = ?
             """,
@@ -506,7 +506,8 @@ def delete_user(user_id):
         if user is None:
             raise ValueError("User not found.")
 
-        if user["role"] == "Administrator":
+        # Only an active Administrator can be the last active one.
+        if user["role"] == "Administrator" and user["is_active"]:
             admin_count = connection.execute(
                 """
                 SELECT COUNT(*)
