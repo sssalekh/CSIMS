@@ -72,6 +72,11 @@ class TestDetectionRules(unittest.TestCase):
         self.assertFalse(
             self.matches("REC-001", state="INT", dbytes=0, service="dns")
         )
+        self.assertFalse(
+            self.matches(
+                "REC-001", state="INT", dbytes=0, service="-", proto="arp"
+            )
+        )
 
     def test_exp_rule_requires_slow_tcp_handshake(self):
         limit = self.thresholds["exp_tcprtt"]

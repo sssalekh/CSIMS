@@ -12,14 +12,14 @@ regardless of runtime enable/disable toggles.
 LEVEL 1 — OVERALL BINARY EVALUATION
 ------------------------------------
 TP: 21,931
-FP: 11,545
-TN: 666,241
+FP: 9,797
+TN: 667,989
 FN: 284
-Precision: 65.51%
+Precision: 69.12%
 Recall: 98.72%
-F1-score: 78.76%
-False Positive Rate: 1.70%
-Accuracy: 98.31%
+F1-score: 81.31%
+False Positive Rate: 1.45%
+Accuracy: 98.56%
 
 LEVEL 2 — INDIVIDUAL RULE EVALUATION
 -------------------------------------
@@ -30,8 +30,8 @@ DOS-001 — High network traffic
   Precision=40.38%; Recall=13.81%; F1=20.58%; FPR=0.67%
 
 REC-001 — Unanswered connection attempt
-  TP=5,556, FP=3,119, TN=674,667, FN=16,659
-  Precision=64.05%; Recall=25.01%; F1=35.97%; FPR=0.46%
+  TP=5,556, FP=1,371, TN=676,415, FN=16,659
+  Precision=80.21%; Recall=25.01%; F1=38.13%; FPR=0.20%
 
 EXP-001 — Abnormal TCP handshake delay
   TP=9,393, FP=4,505, TN=673,281, FN=12,822

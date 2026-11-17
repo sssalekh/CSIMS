@@ -116,7 +116,9 @@ def build_detection_rules(
             description=(
                 "Detects non-DNS connection attempts that were not "
                 "completed and received no data from the destination, "
-                "which is typical of scanning and probing."
+                "which is typical of scanning and probing. ARP is "
+                "excluded because it is a local address-resolution "
+                "protocol, not a connection attempt."
             ),
             severity="Low",
             category="Reconnaissance",
@@ -124,11 +126,13 @@ def build_detection_rules(
                 "state",
                 "dbytes",
                 "service",
+                "proto",
             ),
             condition=lambda df: (
                 (_text(df, "state") == "int")
                 & (_number(df, "dbytes") <= thresholds["rec_max_dbytes"])
                 & (_text(df, "service") != "dns")
+                & (_text(df, "proto") != "arp")
             )
         ),
 
