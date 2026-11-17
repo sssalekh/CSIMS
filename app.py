@@ -654,4 +654,9 @@ if __name__ == "__main__":
             "Administrator setup is incomplete or dataset is already processed."
         )
 
-    app.run(debug=True, use_reloader=False)
+    # The Flask debugger must never be enabled where other people can
+    # reach the server. It is off by default and can be enabled only
+    # explicitly for local development: set CSIMS_DEBUG=1.
+    debug_mode = os.environ.get("CSIMS_DEBUG") == "1"
+
+    app.run(debug=debug_mode, use_reloader=False)
