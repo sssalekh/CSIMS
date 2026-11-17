@@ -295,12 +295,12 @@
 <div class="panel-footer" id="incident-footer"
     style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
 
-    <span>
+    <span id="incident-range">
         Showing {{ start_record }}–{{ end_record }}
         of {{ total_incidents }} incidents
     </span>
 
-    <div style="display: flex; align-items: center; gap: 8px;">
+    <div id="incident-pagination" style="display: flex; align-items: center; gap: 8px;">
 
         {% if page > 1 %}
             <a href="{{ url_for('dashboard',
@@ -312,12 +312,12 @@
             </a>
         {% endif %}
 
-        <span>
+        <span id="incident-page-info">
             Page {{ page }} of {{ total_pages }}
         </span>
 
         {% if page < total_pages %}
-            <a href="{{ url_for('dashboard',
+            <a id="incident-next-link" href="{{ url_for('dashboard',
                                 page=page + 1,
                                 q=request.args.get('q') or None,
                                 severity=request.args.get('severity') or None) }}"
@@ -360,6 +360,8 @@
         const resolveUrlTemplate = "{{ url_for('update_status', id=0, status='Resolved') }}";
         const closeUrlTemplate = "{{ url_for('close_incident', id=0) }}";
         const csrfToken = "{{ csrf_token() }}";
+        const perPage = Number({{ per_page }});
+        let totalIncidents = Number({{ total_incidents }});
 
         function makeCell(text, className) {
             const cell = document.createElement("td");
@@ -466,6 +468,35 @@
             return row;
         }
 
+        // Keep the table footer consistent with incidents added by polling.
+        function updateFooter() {
+            const emptyRow = document.getElementById("empty-incidents-row");
+            if (emptyRow && tbody.querySelector("tr[data-incident-id]")) {
+                emptyRow.closest("tr").remove();
+            }
+
+            const shownRows = tbody.querySelectorAll("tr[data-incident-id]").length;
+            const totalPages = Math.max(1, Math.ceil(totalIncidents / perPage));
+
+            document.getElementById("incident-range").textContent =
+                "Showing " + (shownRows ? 1 : 0) + "–" + shownRows +
+                " of " + totalIncidents + " incidents";
+            document.getElementById("incident-page-info").textContent =
+                "Page 1 of " + totalPages;
+
+            const pagination = document.getElementById("incident-pagination");
+            if (totalPages > 1 && !document.getElementById("incident-next-link")) {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set("page", "2");
+                const nextLink = document.createElement("a");
+                nextLink.id = "incident-next-link";
+                nextLink.href = nextUrl.toString();
+                nextLink.className = "btn btn-secondary";
+                nextLink.textContent = "Next";
+                pagination.appendChild(nextLink);
+            }
+        }
+
         function updateStatistics(statistics) {
             if (!statistics) return;
 
@@ -520,6 +551,7 @@
                 );
 
                 if (!alreadyExists) {
+                    totalIncidents += 1;
                     tbody.insertBefore(
                         buildIncidentRow(incident),
                         tbody.firstChild
@@ -535,6 +567,7 @@
 
             countElement.textContent =
                 tbody.querySelectorAll("tr[data-incident-id]").length + " records";
+            updateFooter();
         }
 
     } catch (error) {
