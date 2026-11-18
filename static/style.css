@@ -161,6 +161,15 @@ hr {
     min-width: var(--sidebar-width);
     min-height: 100vh;
 
+    /* Keep the sidebar on screen while the page content scrolls, so the
+       account controls at the bottom (change password, sign out) are
+       always visible. */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    align-self: flex-start;
+    overflow-y: auto;
+
     display: flex;
     flex-direction: column;
 
@@ -1362,6 +1371,12 @@ table tbody tr:last-child td {
         width: 100%;
         min-width: 0;
         min-height: auto;
+
+        /* On narrow screens the sidebar becomes a top bar and scrolls
+           with the page. */
+        position: static;
+        height: auto;
+        overflow-y: visible;
     }
 
     .sidebar-brand {
