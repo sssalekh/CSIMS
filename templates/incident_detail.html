@@ -375,7 +375,7 @@
                 Dashboard
             </a>
 
-            <a href="{{ url_for('dashboard') }}"
+            <a href="{{ url_for('incidents') }}"
             class="nav-link active">
                 <span class="nav-icon">♟</span>
                 Incidents
@@ -443,7 +443,7 @@
                 <div class="breadcrumb">
                     <a href="{{ url_for('dashboard') }}">Dashboard</a>
                     &nbsp; › &nbsp;
-                    <a href="{{ url_for('dashboard') }}">Incidents</a>
+                    <a href="{{ url_for('incidents') }}">Incidents</a>
                     &nbsp; › &nbsp;
                     Incident #{{ incident.id }}
                 </div>
@@ -511,7 +511,7 @@
                         </p>
                     </div>
 
-                    <a href="{{ url_for('dashboard') }}"
+                    <a href="{{ url_for('incidents') }}"
                     class="back-link">
                         ← Back to Incidents
                     </a>

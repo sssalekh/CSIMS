@@ -1134,6 +1134,7 @@ def get_incidents_page(
     search=None,
     severity=None,
     status=None,
+    category=None,
     limit=20,
     offset=0
 ):
@@ -1167,6 +1168,10 @@ def get_incidents_page(
         if status in VALID_STATUSES:
             where_clause += " AND incidents.status = ?"
             parameters.append(status)
+
+        if category in VALID_CATEGORIES:
+            where_clause += " AND incidents.category = ?"
+            parameters.append(category)
 
         total = connection.execute(
             f"""
@@ -1241,6 +1246,8 @@ def get_incidents_after_id(
     after_id,
     search=None,
     severity=None,
+    status=None,
+    category=None,
     limit=500
 ):
     """Return newly created incidents after an ID, in ascending order."""
@@ -1289,6 +1296,14 @@ def get_incidents_after_id(
         if severity in VALID_SEVERITIES:
             query += " AND incidents.severity = ?"
             parameters.append(severity)
+
+        if status in VALID_STATUSES:
+            query += " AND incidents.status = ?"
+            parameters.append(status)
+
+        if category in VALID_CATEGORIES:
+            query += " AND incidents.category = ?"
+            parameters.append(category)
 
         query += """
             ORDER BY incidents.incident_id ASC
@@ -1570,7 +1585,16 @@ def get_dashboard_statistics():
                 SUM(CASE WHEN severity = 'Medium' THEN 1 ELSE 0 END)
                     AS medium,
                 SUM(CASE WHEN severity = 'Low' THEN 1 ELSE 0 END)
-                    AS low
+                    AS low,
+                SUM(CASE WHEN category = 'Dos / DDoS' THEN 1 ELSE 0 END)
+                    AS category_dos,
+                SUM(CASE WHEN category = 'Reconnaissance' THEN 1 ELSE 0 END)
+                    AS category_reconnaissance,
+                SUM(CASE WHEN category = 'Exploitation' THEN 1 ELSE 0 END)
+                    AS category_exploitation,
+                SUM(CASE WHEN category = 'Other suspicious activity'
+                    THEN 1 ELSE 0 END)
+                    AS category_other
             FROM incidents
             """
         ).fetchone()

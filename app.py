@@ -477,11 +477,49 @@ def change_password_page():
 # DASHBOARD
 # ============================================================
 
+# Filter options shown on the incidents page, in display order.
+SEVERITY_OPTIONS = ["Critical", "High", "Medium", "Low"]
+STATUS_OPTIONS = ["New", "In Progress", "Resolved", "Closed"]
+CATEGORY_OPTIONS = [
+    "Dos / DDoS",
+    "Exploitation",
+    "Reconnaissance",
+    "Other suspicious activity",
+]
+
+# Number of latest incidents shown on the dashboard overview.
+RECENT_INCIDENTS_LIMIT = 10
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
-    severity = request.args.get("severity")
+    """Overview: incident statistics and the latest incidents."""
+
+    statistics = get_dashboard_statistics()["incidents"]
+
+    recent_incidents = get_incidents_page(
+        limit=RECENT_INCIDENTS_LIMIT
+    )["incidents"]
+
+    return render_template(
+        "dashboard.html",
+        statistics=statistics,
+        recent_incidents=recent_incidents,
+        recent_limit=RECENT_INCIDENTS_LIMIT,
+        latest_incident_id=get_latest_incident_id()
+    )
+
+
+@app.route("/incidents")
+@login_required
+def incidents():
+    """Full incident list with search, filters and pagination."""
+
     query = request.args.get("q")
+    severity = request.args.get("severity")
+    status = request.args.get("status")
+    category = request.args.get("category")
 
     try:
         page = max(1, int(request.args.get("page", 1)))
@@ -490,9 +528,15 @@ def dashboard():
 
     per_page = 20
 
+    filters = {
+        "search": query,
+        "severity": severity,
+        "status": status,
+        "category": category,
+    }
+
     result = get_incidents_page(
-        search=query,
-        severity=severity,
+        **filters,
         limit=per_page,
         offset=(page - 1) * per_page
     )
@@ -507,36 +551,29 @@ def dashboard():
         page = total_pages
 
         result = get_incidents_page(
-            search=query,
-            severity=severity,
+            **filters,
             limit=per_page,
             offset=(page - 1) * per_page
         )
 
-    incidents = result["incidents"]
+    incident_list = result["incidents"]
 
     start_record = (page - 1) * per_page + 1 if total_incidents else 0
-    end_record = (page - 1) * per_page + len(incidents)
-
-    statistics = get_dashboard_statistics()
-    incident_stats = statistics["incidents"]
+    end_record = (page - 1) * per_page + len(incident_list)
 
     return render_template(
-        "dashboard.html",
-        incidents=incidents,
-        statistics=statistics,
+        "incidents.html",
+        incidents=incident_list,
         latest_incident_id=get_latest_incident_id(),
-        high=incident_stats["high"],
-        medium=incident_stats["medium"],
-        low=incident_stats["low"],
-        critical=incident_stats["critical"],
-        total=incident_stats["total"],
         page=page,
         per_page=per_page,
         total_incidents=total_incidents,
         total_pages=total_pages,
         start_record=start_record,
-        end_record=end_record
+        end_record=end_record,
+        severity_options=SEVERITY_OPTIONS,
+        status_options=STATUS_OPTIONS,
+        category_options=CATEGORY_OPTIONS
     )
 
 
@@ -550,25 +587,24 @@ def dashboard_updates():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid after_id."}), 400
 
-    severity = request.args.get("severity")
-    query = request.args.get("q")
-
-    incidents = get_incidents_after_id(
+    new_incidents = get_incidents_after_id(
         after_id=after_id,
-        search=query,
-        severity=severity,
+        search=request.args.get("q"),
+        severity=request.args.get("severity"),
+        status=request.args.get("status"),
+        category=request.args.get("category"),
         limit=500
     )
 
     statistics = get_dashboard_statistics()
 
-    if len(incidents) >= 500:
-        latest_id = incidents[-1]["id"]
+    if len(new_incidents) >= 500:
+        latest_id = new_incidents[-1]["id"]
     else:
         latest_id = get_latest_incident_id()
 
     return jsonify({
-        "incidents": incidents,
+        "incidents": new_incidents,
         "latest_id": latest_id,
         "statistics": statistics["incidents"],
     })
