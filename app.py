@@ -44,6 +44,8 @@ from storage.db import (
 )
 
 from dataset.loader import DATASET_FILE
+from detection.config import DETECTION_THRESHOLDS
+from detection.rules import build_detection_rules
 from pathlib import Path
 
 app = Flask(__name__)
@@ -69,6 +71,23 @@ app.config.update(
 
 dataset_thread = None
 dataset_lock = threading.Lock()
+
+# Logical rule codes (DOS-001, REC-001, ...) by rule name. The database
+# identifies registered rules by their names, so the codes defined in
+# detection/rules.py can be shown in the interface without a schema change.
+RULE_CODES = {
+    rule.name: rule.rule_id
+    for rule in build_detection_rules(DETECTION_THRESHOLDS)
+}
+
+
+def add_rule_codes(rules):
+    """Attach the logical rule code to each rule read from the database."""
+
+    for rule in rules:
+        rule["code"] = RULE_CODES.get(rule["name"])
+
+    return rules
 
 PROCESSING_STATE_FILE = (
     Path(__file__).resolve().parent / ".dataset_processed"
@@ -626,7 +645,7 @@ def incident_detail(id):
     return render_template(
         "incident_detail.html",
         incident=result["incident"],
-        rules=result["rules"],
+        rules=add_rule_codes(result["rules"]),
         comments=result["comments"]
     )
 
@@ -848,8 +867,13 @@ def delete_user_route(id):
         else:
             flash("User deleted successfully.", "success")
 
-    except Exception as error:
+    except ValueError as error:
         flash(str(error), "error")
+
+    except Exception:
+        # Unexpected errors are logged, but technical details are not shown.
+        app.logger.exception("Could not delete user %s", id)
+        flash("The user account could not be deleted.", "error")
 
     return redirect(url_for("admin_panel"))
 
@@ -862,7 +886,7 @@ def delete_user_route(id):
 @admin_required
 def rules():
 
-    detection_rules = get_detection_rules()
+    detection_rules = add_rule_codes(get_detection_rules())
 
     return render_template(
         "rules.html",

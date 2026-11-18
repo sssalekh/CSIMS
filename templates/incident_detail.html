@@ -574,7 +574,7 @@
                             </div>
 
                             <div class="information-row">
-                                <span class="information-label">Detected At</span>
+                                <span class="information-label">Detected At (UTC)</span>
                                 <span class="information-value">
                                     {{ incident.detected_at }}
                                 </span>
@@ -726,7 +726,7 @@
 
                                                 <div>
                                                     <span class="rule-code">
-                                                        Rule ID: {{ rule.rule_id }}
+                                                        Rule: {{ rule.code or rule.rule_id }}
                                                     </span>
 
                                                     <h3>{{ rule.name }}</h3>
