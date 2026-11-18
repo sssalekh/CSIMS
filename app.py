@@ -59,7 +59,9 @@ if not app.secret_key:
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False
+    # The Secure flag sends the session cookie only over HTTPS. It is off
+    # for the local HTTP demonstration and enabled with CSIMS_HTTPS=1.
+    SESSION_COOKIE_SECURE=os.environ.get("CSIMS_HTTPS") == "1"
 )
 
 

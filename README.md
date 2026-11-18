@@ -22,7 +22,7 @@ pip install -r requirements.txt
 1. From the project root, set a persistent secret key in the current PowerShell session:
 
    ```powershell
-   $env:dce6d4c97ee4511a8b836280b42d0fa92c16f257178dcbf0361b412159140fb5= python -c "import secrets; print(secrets.token_hex(32))"
+   $env:CSIMS_SECRET_KEY = python -c "import secrets; print(secrets.token_hex(32))"
    ```
 
 2. Start the application:
@@ -34,7 +34,7 @@ pip install -r requirements.txt
 3. Open `http://127.0.0.1:5000/setup` and create the first Administrator account.
 4. Sign in with that account.
 
-The included SQLite database is intentionally clean. The application creates the initial database schema automatically. Dataset processing starts automatically on application startup after Administrator setup has been completed, unless the dataset has already been fully processed.
+The SQLite database (`csims_v2.db`) is not stored in the repository. The application creates it, together with the initial database schema, automatically on first start. Dataset processing starts automatically on application startup after Administrator setup has been completed, unless the dataset has already been fully processed.
 
 For a production HTTPS deployment, set `CSIMS_HTTPS=1`, configure a persistent `CSIMS_SECRET_KEY`, and run the application behind a production WSGI server and HTTPS reverse proxy. The built-in Flask development server is intended for local development only.
 

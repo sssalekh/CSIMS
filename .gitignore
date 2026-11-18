@@ -18,10 +18,11 @@ __pycache__/
 # Logs
 *.log
 
-# Database
+# Database and processing state (created by the application)
 *.db
 *.sqlite
 *.sqlite3
+.dataset_processed
 
 # Large datasets
 data/*.csv

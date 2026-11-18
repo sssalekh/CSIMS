@@ -14,15 +14,13 @@ The evaluation has three levels:
 
 ## Installation and execution
 
-Copy the `evaluation` folder into the project root, alongside `dataset`, `detection`, and the other project folders. Keep the project's existing `evaluation/results` directory if you want to retain previous output; files with matching names are overwritten on the next run.
-
-From the project root, activate the existing virtual environment and run:
+From the project root, activate the virtual environment and run:
 
 ```bash
 python evaluation/run_evaluation.py
 ```
 
-The script expects the dataset files at the paths already configured in `dataset/loader.py` and uses the project's installed dependencies.
+The script expects the dataset files at the paths configured in `dataset/loader.py` and uses the project's installed dependencies. Files in `evaluation/results/` are overwritten on each run.
 
 ## Output files
 
