@@ -340,7 +340,7 @@ def initial_setup():
 
         else:
             try:
-                user_id = create_initial_administrator(
+                create_initial_administrator(
                     username=username,
                     password=password
                 )
@@ -709,7 +709,7 @@ def add_user():
     role = request.form.get("role", "")
 
     try:
-        user_id = create_user(
+        create_user(
             username=username,
             password=password,
             role=role
