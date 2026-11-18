@@ -1,6 +1,7 @@
 import os
 from functools import wraps
 import threading
+import time
 from dataset.processor import process_dataset
 from flask import (
     Flask,
@@ -121,6 +122,100 @@ def should_process_dataset():
     ).strip()
 
     return saved_signature != current_signature
+
+# ============================================================
+# LOGIN ATTEMPT LIMITING
+# ============================================================
+
+# After MAX_FAILED_LOGIN_ATTEMPTS consecutive failed logins for one
+# username, logins for that username are blocked for
+# LOGIN_LOCKOUT_SECONDS, even with the correct password. This slows down
+# password guessing (brute-force attacks).
+#
+# The counters are kept in application memory, so they are reset when the
+# application restarts. This is sufficient for a single-process deployment.
+# Unknown usernames are counted in the same way, so the response does not
+# reveal whether an account exists.
+MAX_FAILED_LOGIN_ATTEMPTS = 5
+LOGIN_LOCKOUT_SECONDS = 5 * 60
+MAX_TRACKED_USERNAMES = 10000
+
+failed_logins = {}
+failed_logins_lock = threading.Lock()
+
+
+def _forget_old_failed_logins(now):
+    """Remove entries that are no longer locked and no longer recent."""
+
+    for username in list(failed_logins):
+        entry = failed_logins[username]
+        if (
+            entry["locked_until"] <= now
+            and now - entry["last_failure"] >= LOGIN_LOCKOUT_SECONDS
+        ):
+            del failed_logins[username]
+
+
+def login_lock_remaining(username):
+    """Return the remaining lockout time in seconds (0 if not locked)."""
+
+    now = time.monotonic()
+
+    with failed_logins_lock:
+        entry = failed_logins.get(username)
+
+        if entry is None:
+            return 0
+
+        if entry["locked_until"] > now:
+            return entry["locked_until"] - now
+
+        return 0
+
+
+def register_failed_login(username):
+    """Count a failed login and lock the username after too many failures."""
+
+    now = time.monotonic()
+
+    with failed_logins_lock:
+        if len(failed_logins) >= MAX_TRACKED_USERNAMES:
+            _forget_old_failed_logins(now)
+
+        entry = failed_logins.get(username)
+
+        # Failures older than the lockout period are not counted.
+        if (
+            entry is None
+            or now - entry["last_failure"] >= LOGIN_LOCKOUT_SECONDS
+        ):
+            entry = {"count": 0, "locked_until": 0.0, "last_failure": now}
+            failed_logins[username] = entry
+
+        entry["count"] += 1
+        entry["last_failure"] = now
+
+        if entry["count"] >= MAX_FAILED_LOGIN_ATTEMPTS:
+            entry["count"] = 0
+            entry["locked_until"] = now + LOGIN_LOCKOUT_SECONDS
+
+
+def clear_failed_logins(username):
+    """Reset the counter after a successful login or a password reset."""
+
+    with failed_logins_lock:
+        failed_logins.pop(username, None)
+
+
+def lockout_message(seconds):
+    minutes = max(1, int((seconds + 59) // 60))
+    unit = "minute" if minutes == 1 else "minutes"
+
+    return (
+        "Too many failed login attempts. "
+        f"Try again in {minutes} {unit}."
+    )
+
 
 # ============================================================
 # ACCESS CONTROL
@@ -307,9 +402,18 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
+        remaining = login_lock_remaining(username)
+
+        # While a username is locked, even the correct password is refused.
+        if remaining:
+            flash(lockout_message(remaining), "error")
+            return render_template("login.html"), 429
+
         user = authenticate_user(username, password)
 
         if user:
+
+            clear_failed_logins(username)
 
             session.clear()
 
@@ -320,6 +424,14 @@ def login():
 
 
             return redirect(url_for("dashboard"))
+
+        register_failed_login(username)
+
+        remaining = login_lock_remaining(username)
+
+        if remaining:
+            flash(lockout_message(remaining), "error")
+            return render_template("login.html"), 429
 
         flash("Invalid username or password.", "error")
 
@@ -649,7 +761,13 @@ def reset_user_password_route(id):
     temporary_password = request.form.get("temporary_password", "")
 
     try:
+        user = get_active_user(id)
+
         reset_user_password(id, temporary_password)
+
+        # A password reset also removes a login lockout for that user.
+        if user is not None:
+            clear_failed_logins(user["username"])
 
         flash(
             "Temporary password set. The user must change it "
