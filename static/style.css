@@ -1461,3 +1461,30 @@ table tbody tr:last-child td {
         font-size: 22px;
     }
 }
+
+
+/* ==========================================================
+   FLASH NOTIFICATIONS (shown after an action when the page
+   keeps its scroll position, see static/js/preserve-scroll.js)
+   ========================================================== */
+
+.flash-toast-container {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 1000;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: opacity 0.4s ease;
+}
+
+.flash-toast-container .flash-toast {
+    margin: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+
+.flash-toast-container.flash-toast-hidden {
+    opacity: 0;
+}
