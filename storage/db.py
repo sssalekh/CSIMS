@@ -228,6 +228,10 @@ def get_users():
                 role,
                 is_active,
                 must_change_password,
+                CASE
+                    WHEN username = 'deleted_user_' || user_id THEN 1
+                    ELSE 0
+                END AS is_deleted,
                 created_at
             FROM users
             ORDER BY user_id
@@ -500,14 +504,24 @@ def reset_user_password(user_id, temporary_password):
 
 
 def set_user_active(user_id, is_active):
-    """Activate or deactivate a user account."""
+    """
+    Activate or deactivate a user account.
+
+    A deactivated user cannot log in and is signed out at the next request,
+    while the account and its comments are preserved. The last active
+    Administrator cannot be deactivated, and accounts that were anonymized
+    by delete_user() cannot be activated again.
+    """
 
     connection = get_connection()
 
     try:
+        # Keep the checks and the update in one transaction.
+        connection.execute("BEGIN IMMEDIATE")
+
         user = connection.execute(
             """
-            SELECT user_id, role, is_active
+            SELECT user_id, username, role, is_active
             FROM users
             WHERE user_id = ?
             """,
@@ -516,6 +530,9 @@ def set_user_active(user_id, is_active):
 
         if user is None:
             raise ValueError("User not found.")
+
+        if is_active and user["username"] == f"deleted_user_{user_id}":
+            raise ValueError("Deleted accounts cannot be activated.")
 
         if (
             not is_active

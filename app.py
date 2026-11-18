@@ -39,7 +39,8 @@ from storage.db import (
     add_incident_comment,
     get_dashboard_statistics,
     change_password,
-    reset_user_password
+    reset_user_password,
+    set_user_active
 )
 
 from dataset.loader import DATASET_FILE
@@ -291,26 +292,6 @@ def admin_required(function):
         return function(*args, **kwargs)
 
     return wrapper
-
-
-def analyst_required(function):
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        user = get_authenticated_user()
-
-        if user is None:
-            return redirect(url_for("login"))
-
-        if password_change_required(user):
-            return redirect(url_for("change_password_page"))
-
-        if user["role"] != "Security Analyst":
-            abort(403)
-
-        return function(*args, **kwargs)
-
-    return wrapper
-
 
 
 # ============================================================
@@ -776,6 +757,34 @@ def reset_user_password_route(id):
             "at the next login.",
             "success"
         )
+
+    except ValueError as error:
+        flash(str(error), "error")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/set_user_active/<int:id>", methods=["POST"])
+@admin_required
+def set_user_active_route(id):
+
+    activate = request.form.get("active") == "1"
+
+    if id == session["user_id"] and not activate:
+        flash("You cannot deactivate your own account.", "error")
+        return redirect(url_for("admin_panel"))
+
+    try:
+        set_user_active(id, activate)
+
+        if activate:
+            flash("User account activated.", "success")
+        else:
+            flash(
+                "User account deactivated. The user can no longer "
+                "log in, and existing records are preserved.",
+                "success"
+            )
 
     except ValueError as error:
         flash(str(error), "error")
