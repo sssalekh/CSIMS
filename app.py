@@ -36,7 +36,9 @@ from storage.db import (
     update_incident_status,
     update_incident_severity,
     add_incident_comment,
-    get_dashboard_statistics
+    get_dashboard_statistics,
+    change_password,
+    reset_user_password
 )
 
 from dataset.loader import DATASET_FILE
@@ -146,6 +148,19 @@ def get_authenticated_user():
     return user
 
 
+# Pages that stay available while a user must replace a temporary password.
+PASSWORD_CHANGE_ALLOWED_ENDPOINTS = {"change_password_page", "logout"}
+
+
+def password_change_required(user):
+    """Return True when the user must replace a temporary password first."""
+
+    return (
+        bool(user["must_change_password"])
+        and request.endpoint not in PASSWORD_CHANGE_ALLOWED_ENDPOINTS
+    )
+
+
 def login_required(function):
     @wraps(function)
     def wrapper(*args, **kwargs):
@@ -153,6 +168,9 @@ def login_required(function):
 
         if user is None:
             return redirect(url_for("login"))
+
+        if password_change_required(user):
+            return redirect(url_for("change_password_page"))
 
         return function(*args, **kwargs)
 
@@ -166,6 +184,9 @@ def admin_required(function):
 
         if user is None:
             return redirect(url_for("login"))
+
+        if password_change_required(user):
+            return redirect(url_for("change_password_page"))
 
         if user["role"] != "Administrator":
             abort(403)
@@ -182,6 +203,9 @@ def analyst_required(function):
 
         if user is None:
             return redirect(url_for("login"))
+
+        if password_change_required(user):
+            return redirect(url_for("change_password_page"))
 
         if user["role"] != "Security Analyst":
             abort(403)
@@ -309,6 +333,49 @@ def logout():
     session.clear()
 
     return redirect(url_for("login"))
+
+
+@app.route("/change_password", methods=["GET", "POST"])
+@login_required
+def change_password_page():
+    """
+    Let the current user replace their password.
+
+    A user whose account was created or reset by an Administrator is sent
+    here after logging in and cannot open other pages until the temporary
+    password has been replaced.
+    """
+
+    user = get_authenticated_user()
+    must_change = bool(user["must_change_password"])
+
+    if request.method == "POST":
+
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        try:
+            if new_password != confirm_password:
+                raise ValueError("New passwords do not match.")
+
+            change_password(
+                user_id=user["id"],
+                current_password=current_password,
+                new_password=new_password
+            )
+
+            flash("Password changed successfully.", "success")
+
+            return redirect(url_for("dashboard"))
+
+        except ValueError as error:
+            flash(str(error), "error")
+
+    return render_template(
+        "change_password.html",
+        must_change=must_change
+    )
 
 
 # ============================================================
@@ -534,7 +601,11 @@ def add_user():
             role=role
         )
 
-        flash("User created successfully.", "success")
+        flash(
+            "User created successfully. The user must change the "
+            "temporary password at the first login.",
+            "success"
+        )
 
     except ValueError as error:
         flash(str(error), "error")
@@ -557,6 +628,34 @@ def update_user_role(id):
         set_user_role(id, role)
 
         flash("User role updated successfully.", "success")
+
+    except ValueError as error:
+        flash(str(error), "error")
+
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/reset_user_password/<int:id>", methods=["POST"])
+@admin_required
+def reset_user_password_route(id):
+
+    if id == session["user_id"]:
+        flash(
+            "Use Change Password to change your own password.",
+            "error"
+        )
+        return redirect(url_for("admin_panel"))
+
+    temporary_password = request.form.get("temporary_password", "")
+
+    try:
+        reset_user_password(id, temporary_password)
+
+        flash(
+            "Temporary password set. The user must change it "
+            "at the next login.",
+            "success"
+        )
 
     except ValueError as error:
         flash(str(error), "error")

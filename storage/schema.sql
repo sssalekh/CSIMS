@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
         CHECK (role IN ('Administrator', 'Security Analyst')),
     is_active BOOLEAN NOT NULL DEFAULT 1
         CHECK (is_active IN (0, 1)),
+    must_change_password BOOLEAN NOT NULL DEFAULT 0
+        CHECK (must_change_password IN (0, 1)),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

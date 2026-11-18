@@ -60,6 +60,17 @@ class TestWebSecurity(unittest.TestCase):
             role="Administrator"
         )
 
+        # These tests check access control, not temporary passwords, so the
+        # users are treated as having already chosen personal passwords.
+        connection = database.get_connection()
+        try:
+            connection.execute(
+                "UPDATE users SET must_change_password = 0"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
     def set_session(self, user_id, role):
         with self.client.session_transaction() as session:
             session["user_id"] = user_id

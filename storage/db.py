@@ -78,6 +78,23 @@ def initialize_database():
 
         connection.executescript(schema)
 
+        # Migrate users.must_change_password.
+        user_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(users)"
+            ).fetchall()
+        }
+
+        if "must_change_password" not in user_columns:
+            connection.execute(
+                """
+                ALTER TABLE users
+                ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0
+                CHECK (must_change_password IN (0, 1))
+                """
+            )
+
         # Migrate incidents.category.
         incident_columns = {
             row["name"]
@@ -179,7 +196,8 @@ def get_active_user(user_id):
                 user_id AS id,
                 username,
                 role,
-                is_active
+                is_active,
+                must_change_password
             FROM users
             WHERE user_id = ?
             AND is_active = 1
@@ -209,6 +227,7 @@ def get_users():
                 username,
                 role,
                 is_active,
+                must_change_password,
                 created_at
             FROM users
             ORDER BY user_id
@@ -321,7 +340,12 @@ def create_initial_administrator(username, password):
 
 
 def create_user(username, password, role):
-    """Create a user with a securely hashed password."""
+    """
+    Create a user with a securely hashed temporary password.
+
+    The password is chosen by the Administrator, so the user must replace
+    it with a personal password at the first login.
+    """
 
     username = username.strip()
 
@@ -343,9 +367,10 @@ def create_user(username, password, role):
             INSERT INTO users (
                 username,
                 password_hash,
-                role
+                role,
+                must_change_password
             )
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, 1)
             """,
             (username, password_hash, role)
         )
@@ -356,6 +381,115 @@ def create_user(username, password, role):
     except sqlite3.IntegrityError:
         connection.rollback()
         raise ValueError("Username already exists.")
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+MIN_PASSWORD_LENGTH = 8
+
+
+def change_password(user_id, current_password, new_password):
+    """
+    Let a user replace their own password.
+
+    The current password must be confirmed. After the change the
+    must_change_password flag is cleared, so a temporary password set by
+    an Administrator is no longer valid.
+    """
+
+    if not current_password or not new_password:
+        raise ValueError("All password fields are required.")
+
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            "Password must be at least 8 characters long."
+        )
+
+    if new_password == current_password:
+        raise ValueError(
+            "The new password must be different from the current password."
+        )
+
+    connection = get_connection()
+
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+
+        user = connection.execute(
+            """
+            SELECT password_hash
+            FROM users
+            WHERE user_id = ?
+            AND is_active = 1
+            """,
+            (user_id,)
+        ).fetchone()
+
+        if user is None:
+            raise ValueError("Active user not found.")
+
+        if not check_password_hash(user["password_hash"], current_password):
+            raise ValueError("The current password is incorrect.")
+
+        connection.execute(
+            """
+            UPDATE users
+            SET password_hash = ?,
+                must_change_password = 0
+            WHERE user_id = ?
+            """,
+            (generate_password_hash(new_password), user_id)
+        )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def reset_user_password(user_id, temporary_password):
+    """
+    Set a temporary password for another user (Administrator action).
+
+    The user must replace the temporary password at the next login, so the
+    Administrator does not keep knowing the user's personal password.
+    """
+
+    if not temporary_password:
+        raise ValueError("A temporary password is required.")
+
+    if len(temporary_password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            "Password must be at least 8 characters long."
+        )
+
+    connection = get_connection()
+
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE users
+            SET password_hash = ?,
+                must_change_password = 1
+            WHERE user_id = ?
+            AND is_active = 1
+            """,
+            (generate_password_hash(temporary_password), user_id)
+        )
+
+        if cursor.rowcount == 0:
+            raise ValueError("Active user not found.")
+
+        connection.commit()
 
     except Exception:
         connection.rollback()

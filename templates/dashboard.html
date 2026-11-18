@@ -57,6 +57,10 @@
                     <strong>{{ session.get('user', 'User') }}</strong>
                     <span>{{ session.get('role', '') }}</span>
                 </div>
+                <a href="{{ url_for('change_password_page') }}"
+                   class="logout-link"
+                   title="Change password"
+                   style="margin-right: 10px;">⚿</a>
                 <form method="POST" action="{{ url_for('logout') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="logout-link" title="Logout">↪</button>
