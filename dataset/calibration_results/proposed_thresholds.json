@@ -1,10 +1,6 @@
 {
-    "dos_sload": 13834595.0,
-    "dos_spkts": 638.0,
-    "rec_ct_dst_src_ltm": 13.0,
-    "exp_trans_depth": 2.0,
-    "exp_http_methods": 6.0,
-    "gen_sbytes": 37914.0,
-    "con_ct_srv_src": 28.0,
-    "con_ct_src_ltm": 7.0
+    "dos_sload": 132000000.0,
+    "rec_max_dbytes": 0.0,
+    "exp_tcprtt": 0.011162879999999887,
+    "con_dns_max_sbytes": 114.0
 }

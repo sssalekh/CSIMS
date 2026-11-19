@@ -7,42 +7,66 @@ Total records: 700,001
 
 DATA SPLIT
 ----------
-Complete feature rows were kept in one split.
-The split assignment considered row count, attack count and normal count.
-Label and attack_cat were not included in feature grouping.
+Identical complete feature rows form one group; a group is never
+divided between two parts. Groups were assigned at random,
+stratified by Label (60% / 20% / 20%).
 Groups with conflicting Label values: 0
+Calibration: 420,002 records, 13,329 attacks (3.17%)
+Validation: 139,999 records, 4,443 attacks (3.17%)
+Test: 140,000 records, 4,443 attacks (3.17%)
 
 GROUND TRUTH
 ------------
-Label was used only for split balancing and evaluation.
-The Detection Engine received feature columns only.
-attack_cat was not used for threshold selection.
+Label was used only for split stratification, threshold selection
+on Validation and evaluation. The rules received feature columns
+only. attack_cat was used only for the category analysis on Test.
 
 THRESHOLD SELECTION
 -------------------
-Candidate values were calculated from Calibration features.
-Validation was used to select thresholds.
-Each rule was constrained not to exceed its baseline Validation FPR.
-Test was not used for candidate generation or threshold selection.
+Candidates: the initial value and quantiles of the Calibration part.
+Selection: highest Validation F1-score for each rule, with the
+rule's Validation FPR not exceeding 1%.
+Test was not used for candidate generation or selection.
+DOS-001 dos_sload: 10000000.0 -> 132000000.0
+REC-001 rec_max_dbytes: 0.0 -> 0.0
+EXP-001 exp_tcprtt: 0.05 -> 0.011162879999999887
+GEN-001 (no numeric threshold):  -> 
+CON-001 con_dns_max_sbytes: 100.0 -> 114.0
 
-TEST RESULTS — ALL RULES
--------------------------
-Baseline: TP=912, FP=10,724, TN=124,833, FN=3,531
-Precision=7.8377%; Recall=20.5267%; F1=11.3440%; FPR=7.9111%; Accuracy=89.8179%
-Proposed: TP=3,417, FP=9,464, TN=126,093, FN=1,026
-Precision=26.5274%; Recall=76.9075%; F1=39.4482%; FPR=6.9816%; Accuracy=92.5071%
+TEST RESULTS - ALL RULES
+------------------------
+Version 1: TP=816, FP=6,062, TN=129,495, FN=3,627; Precision=11.86%; Recall=18.37%; F1=14.42%; FPR=4.47%
+Initial: TP=4,299, FP=4,497, TN=131,060, FN=144; Precision=48.87%; Recall=96.76%; F1=64.94%; FPR=3.32%
+Proposed: TP=4,397, FP=1,950, TN=133,607, FN=46; Precision=69.28%; Recall=98.96%; F1=81.50%; FPR=1.44%
+
+TEST RESULTS - INDIVIDUAL RULES
+-------------------------------
+Version 1
+  DOS-001: TP=671, FP=2,405, TN=133,152, FN=3,772; Precision=21.81%; Recall=15.10%; F1=17.85%; FPR=1.77%
+  REC-001: TP=48, FP=1,585, TN=133,972, FN=4,395; Precision=2.94%; Recall=1.08%; F1=1.58%; FPR=1.17%
+  EXP-001: TP=0, FP=813, TN=134,744, FN=4,443; Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.60%
+  GEN-001: TP=127, FP=1,338, TN=134,219, FN=4,316; Precision=8.67%; Recall=2.86%; F1=4.30%; FPR=0.99%
+  CON-001: TP=0, FP=831, TN=134,726, FN=4,443; Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.61%
+Initial
+  DOS-001: TP=2,538, FP=3,682, TN=131,875, FN=1,905; Precision=40.80%; Recall=57.12%; F1=47.60%; FPR=2.72%
+  REC-001: TP=1,105, FP=286, TN=135,271, FN=3,338; Precision=79.44%; Recall=24.87%; F1=37.88%; FPR=0.21%
+  EXP-001: TP=1,705, FP=767, TN=134,790, FN=2,738; Precision=68.97%; Recall=38.37%; F1=49.31%; FPR=0.57%
+  GEN-001: TP=707, FP=2, TN=135,555, FN=3,736; Precision=99.72%; Recall=15.91%; F1=27.45%; FPR=0.00%
+  CON-001: TP=0, FP=10, TN=135,547, FN=4,443; Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.01%
+Proposed
+  DOS-001: TP=652, FP=903, TN=134,654, FN=3,791; Precision=41.93%; Recall=14.67%; F1=21.74%; FPR=0.67%
+  REC-001: TP=1,105, FP=286, TN=135,271, FN=3,338; Precision=79.44%; Recall=24.87%; F1=37.88%; FPR=0.21%
+  EXP-001: TP=1,810, FP=879, TN=134,678, FN=2,633; Precision=67.31%; Recall=40.74%; F1=50.76%; FPR=0.65%
+  GEN-001: TP=707, FP=2, TN=135,555, FN=3,736; Precision=99.72%; Recall=15.91%; F1=27.45%; FPR=0.00%
+  CON-001: TP=1,468, FP=10, TN=135,547, FN=2,975; Precision=99.32%; Recall=33.04%; F1=49.59%; FPR=0.01%
 
 NOTES
 -----
+Version 1 is the original rule set before redesign.
 Each source record is counted once in the overall result, even if
-more than one detection rule matches it.
-Individual rule metrics are binary attack-versus-normal results.
-The script uses the real conditions from detection/rules.py.
-A small consistency check compares rule predictions with DetectionEngine.
-Groups with conflicting Label values are listed separately.
-A deterministic feature-only rule cannot assign different predictions
-to identical feature rows, even when their dataset labels conflict.
-The split prevents exact complete-feature duplicates from crossing parts.
-It does not prove independence between related network flows.
-The proposed thresholds are not copied into detection/config.py.
+more than one rule matches it. Individual rule metrics compare one
+rule with the binary Label, so a rule aimed at one kind of
+behaviour cannot reach a high recall on all attacks by itself.
+The split prevents exact duplicates from crossing parts; it does
+not prove independence between related network flows.
 Do not choose thresholds again based on Test results.

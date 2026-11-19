@@ -25,3 +25,6 @@ __pycache__/
 
 # Large datasets
 data/*.csv
+
+# Dataset ignore
+.dataset_processed

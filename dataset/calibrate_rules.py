@@ -1,12 +1,30 @@
 """
-Calibrate the thresholds used by the CSIMS detection rules.
+Calibrate and evaluate the thresholds used by the CSIMS detection rules.
 
 Run this file from the main project folder:
 
     python dataset/calibrate_rules.py --seed 2026
 
-The script does not change detection/config.py. It creates a separate folder
-with the proposed thresholds and the evaluation results.
+Procedure
+---------
+1. The dataset is loaded through the project's Dataset Loader. Detection
+   features and ground truth are kept separate.
+2. Identical complete feature rows are grouped, and the groups are split at
+   random into Calibration (60%), Validation (20%) and Test (20%). The split
+   is stratified by Label so that each part keeps the same attack share, and
+   a group never crosses two parts.
+3. Candidate thresholds are taken from the Calibration part only.
+4. For each rule, the candidate with the highest Validation F1-score is
+   selected, provided that the rule's Validation false positive rate does not
+   exceed MAX_RULE_FPR (the alert budget of one rule).
+5. The Test part is used once, after all thresholds have been selected, to
+   compare three configurations:
+     - Version 1: the original rule set and thresholds (before redesign);
+     - Initial:   the redesigned rules with the initial thresholds;
+     - Proposed:  the redesigned rules with the selected thresholds.
+
+The script does not change detection/config.py. It writes its results to
+dataset/calibration_results/.
 """
 
 import argparse
@@ -24,7 +42,7 @@ if str(PROJECT_FOLDER) not in sys.path:
     sys.path.insert(0, str(PROJECT_FOLDER))
 
 from dataset.loader import load_dataset
-from detection.config import DETECTION_THRESHOLDS
+from detection.config import INITIAL_DETECTION_THRESHOLDS
 from detection.rules import build_detection_rules
 from detection.engine import DetectionEngine
 
@@ -32,27 +50,78 @@ from detection.engine import DetectionEngine
 RESULTS_FOLDER = Path(__file__).resolve().parent / "calibration_results"
 
 SPLIT_PARTS = (0.60, 0.20, 0.20)
-QUANTILES = (0.80, 0.85, 0.90, 0.95, 0.97, 0.98, 0.99, 0.995, 0.999)
+SPLIT_NAMES = ("Calibration", "Validation", "Test")
 
+# Maximum false positive rate accepted for one rule on Validation.
+MAX_RULE_FPR = 0.01
+
+QUANTILES = (
+    0.01, 0.02, 0.05, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70,
+    0.80, 0.85, 0.90, 0.95, 0.97, 0.98, 0.99, 0.995, 0.999,
+)
+
+RULE_ORDER = ("DOS-001", "REC-001", "EXP-001", "GEN-001", "CON-001")
+
+# Thresholds selected for each rule. GEN-001 has no numeric threshold.
 RULE_THRESHOLDS = {
-    "DOS-001": ("dos_sload", "dos_spkts"),
-    "REC-001": ("rec_ct_dst_src_ltm",),
-    "EXP-001": ("exp_trans_depth", "exp_http_methods"),
-    "GEN-001": ("gen_sbytes",),
-    "CON-001": ("con_ct_srv_src", "con_ct_src_ltm"),
+    "DOS-001": ("dos_sload",),
+    "REC-001": ("rec_max_dbytes",),
+    "EXP-001": ("exp_tcprtt",),
+    "GEN-001": (),
+    "CON-001": ("con_dns_max_sbytes",),
 }
 
-RULE_FEATURES = {
+THRESHOLD_FEATURES = {
     "dos_sload": "Sload",
-    "dos_spkts": "Spkts",
-    "rec_ct_dst_src_ltm": "ct_dst_src_ltm",
-    "exp_trans_depth": "trans_depth",
-    "exp_http_methods": "ct_flw_http_mthd",
-    "gen_sbytes": "sbytes",
-    "con_ct_srv_src": "ct_srv_src",
-    "con_ct_src_ltm": "ct_src_ltm",
+    "rec_max_dbytes": "dbytes",
+    "exp_tcprtt": "tcprtt",
+    "con_dns_max_sbytes": "sbytes",
 }
 
+
+# ------------------------------------------------------------------
+# Version 1 rules (before redesign). Used only for comparison.
+# ------------------------------------------------------------------
+
+VERSION_1_THRESHOLDS = {
+    "dos_sload": 132000000,
+    "dos_spkts": 426,
+    "rec_ct_dst_src_ltm": 11,
+    "exp_trans_depth": 2,
+    "exp_http_methods": 6,
+    "gen_sbytes": 37500,
+    "con_ct_srv_src": 23,
+    "con_ct_src_ltm": 23,
+}
+
+VERSION_1_FEATURES = (
+    "Sload", "Spkts", "ct_dst_src_ltm", "trans_depth",
+    "ct_flw_http_mthd", "sbytes", "ct_srv_src", "ct_src_ltm",
+)
+
+
+def version_1_predictions(features):
+    """Return the predictions of the original five rules."""
+    t = VERSION_1_THRESHOLDS
+    x = {
+        column: pd.to_numeric(features[column], errors="coerce")
+        for column in VERSION_1_FEATURES
+    }
+    return {
+        "DOS-001": (x["Sload"] >= t["dos_sload"])
+        | (x["Spkts"] >= t["dos_spkts"]),
+        "REC-001": x["ct_dst_src_ltm"] >= t["rec_ct_dst_src_ltm"],
+        "EXP-001": (x["trans_depth"] >= t["exp_trans_depth"])
+        & (x["ct_flw_http_mthd"] >= t["exp_http_methods"]),
+        "GEN-001": x["sbytes"] >= t["gen_sbytes"],
+        "CON-001": (x["ct_srv_src"] >= t["con_ct_srv_src"])
+        & (x["ct_src_ltm"] >= t["con_ct_src_ltm"]),
+    }
+
+
+# ------------------------------------------------------------------
+# Metrics
+# ------------------------------------------------------------------
 
 def calculate_metrics(actual, predicted):
     """Calculate the main binary classification metrics."""
@@ -87,13 +156,16 @@ def calculate_metrics(actual, predicted):
     }
 
 
+# ------------------------------------------------------------------
+# Data split
+# ------------------------------------------------------------------
+
 def make_group_ids(features):
     """
     Give identical complete feature rows the same group number.
 
     Label and attack_cat are not included. A 64-bit pandas row hash is used
-    so that the full dataset can be grouped without building large Python
-    tuples for every record.
+    so that the full dataset can be grouped efficiently.
     """
     row_hashes = pd.util.hash_pandas_object(
         features, index=False
@@ -105,11 +177,13 @@ def make_group_ids(features):
 
 def split_groups(group_ids, labels, seed):
     """
-    Split complete feature groups into Calibration, Validation and Test.
+    Split complete feature groups at random into Calibration, Validation
+    and Test, stratified by Label.
 
-    The assignment tries to keep the number of rows, attacks and normal
-    records close to the requested 60/20/20 proportions. A group is never
-    divided between two parts.
+    Groups are shuffled separately for normal and attack groups and assigned
+    by their cumulative number of records, so each part receives about
+    60/20/20 of both classes. A group is never divided between two parts.
+    A group containing both labels is treated as an attack group.
     """
     random = np.random.default_rng(seed)
 
@@ -117,126 +191,79 @@ def split_groups(group_ids, labels, seed):
         "group_id": group_ids,
         "label": np.asarray(labels, dtype="int8"),
     })
-
-    summary = group_data.groupby("group_id", sort=False).agg(
+    summary = group_data.groupby("group_id").agg(
         records=("label", "size"),
-        attacks=("label", "sum"),
+        has_attack=("label", "max"),
     )
-    summary["normal"] = summary["records"] - summary["attacks"]
 
-    # Randomise groups with the same size before sorting them.
-    summary = summary.iloc[random.permutation(len(summary))]
-    summary = summary.sort_values("records", ascending=False, kind="stable")
+    boundaries = np.cumsum(SPLIT_PARTS)[:-1]
+    group_split = np.empty(len(summary), dtype=np.int8)
 
-    totals = np.array([
-        summary["records"].sum(),
-        summary["attacks"].sum(),
-        summary["normal"].sum(),
-    ], dtype=float)
-
-    targets = np.array(SPLIT_PARTS)[:, None] * totals[None, :]
-    current = np.zeros((3, 3), dtype=float)
-    assigned_groups = [[], [], []]
-
-    for group_id, row in summary.iterrows():
-        group_counts = np.array(
-            [row["records"], row["attacks"], row["normal"]],
-            dtype=float,
+    for label_value in (0, 1):
+        positions = np.flatnonzero(
+            summary["has_attack"].to_numpy() == label_value
+        )
+        positions = random.permutation(positions)
+        sizes = summary["records"].to_numpy()[positions]
+        if len(positions) == 0:
+            continue
+        # Use the centre of each group to decide where it belongs.
+        centre = (np.cumsum(sizes) - sizes / 2) / sizes.sum()
+        group_split[positions] = np.searchsorted(
+            boundaries, centre, side="right"
         )
 
-        best_split = None
-        best_score = None
-
-        for split_number in range(3):
-            trial = current.copy()
-            trial[split_number] += group_counts
-
-            # Normalised squared distance from the requested split sizes.
-            score = np.sum(
-                ((trial - targets) / np.maximum(targets, 1.0)) ** 2
-            )
-
-            if best_score is None or score < best_score:
-                best_score = score
-                best_split = split_number
-
-        current[best_split] += group_counts
-        assigned_groups[best_split].append(int(group_id))
-
-    group_to_split = np.full(int(group_ids.max()) + 1, -1, dtype=np.int8)
-
-    for split_number, group_list in enumerate(assigned_groups):
-        group_to_split[np.asarray(group_list, dtype=int)] = split_number
-
-    row_split = group_to_split[group_ids]
-
-    if np.any(row_split < 0):
-        raise RuntimeError("Some feature groups were not assigned.")
+    group_to_split = pd.Series(group_split, index=summary.index)
+    row_split = group_to_split.loc[group_ids].to_numpy()
 
     indexes = [
-        np.flatnonzero(row_split == split_number)
-        for split_number in range(3)
+        np.flatnonzero(row_split == number)
+        for number in range(len(SPLIT_PARTS))
     ]
 
-    # Check that no complete feature group appears in more than one split.
-    group_sets = [
-        set(group_ids[indexes[number]].tolist())
-        for number in range(3)
-    ]
-    if (
-        group_sets[0] & group_sets[1]
-        or group_sets[0] & group_sets[2]
-        or group_sets[1] & group_sets[2]
-    ):
-        raise RuntimeError("A duplicate feature group crossed split boundaries.")
+    group_sets = [set(group_ids[index].tolist()) for index in indexes]
+    for first, second in itertools.combinations(range(3), 2):
+        if group_sets[first] & group_sets[second]:
+            raise RuntimeError(
+                "A duplicate feature group crossed split boundaries."
+            )
 
-    return indexes, summary, current
+    return indexes
 
 
-def prepare_rule_features(features):
-    """Convert only the columns used by the rules to numeric values."""
-    missing = [
-        column for column in RULE_FEATURES.values()
-        if column not in features.columns
-    ]
-    if missing:
-        raise ValueError(
-            "The dataset is missing rule features: " + ", ".join(missing)
-        )
+# ------------------------------------------------------------------
+# Rule predictions and threshold selection
+# ------------------------------------------------------------------
 
-    result = features[list(RULE_FEATURES.values())].copy()
-
-    for column in result.columns:
-        result[column] = pd.to_numeric(result[column], errors="coerce")
-
-    return result
+def rule_feature_columns():
+    """Return every feature column used by the redesigned rules."""
+    columns = []
+    for rule in build_detection_rules(INITIAL_DETECTION_THRESHOLDS):
+        for column in rule.required_features:
+            if column not in columns:
+                columns.append(column)
+    return columns
 
 
 def get_rule_predictions(features, thresholds):
     """
     Get predictions from the actual rule definitions in detection/rules.py.
 
-    This avoids keeping a second, separate copy of the detection conditions
-    inside the calibration script.
+    This avoids keeping a second copy of the detection conditions here.
     """
-    rules = build_detection_rules(thresholds)
     predictions = {}
-
-    for rule in rules:
+    for rule in build_detection_rules(thresholds):
         result = rule.condition(features)
-        predictions[rule.rule_id] = (
-            result.fillna(False).astype(bool)
-        )
-
+        predictions[rule.rule_id] = result.fillna(False).astype(bool)
     return predictions
 
 
-def get_candidates(calibration_features, threshold_name, baseline_value):
+def get_candidates(calibration_features, threshold_name, initial_value):
     """Create threshold candidates from the Calibration part only."""
-    column = RULE_FEATURES[threshold_name]
+    column = THRESHOLD_FEATURES[threshold_name]
 
     values = (
-        calibration_features[column]
+        pd.to_numeric(calibration_features[column], errors="coerce")
         .replace([np.inf, -np.inf], np.nan)
         .dropna()
     )
@@ -244,19 +271,13 @@ def get_candidates(calibration_features, threshold_name, baseline_value):
     if values.empty:
         raise ValueError("No numeric values found for " + column)
 
-    candidates = [float(baseline_value)]
+    candidates = {float(initial_value)}
+    candidates.update(float(values.quantile(q)) for q in QUANTILES)
 
-    for quantile in QUANTILES:
-        candidates.append(float(values.quantile(quantile)))
-
-    candidates = sorted(set(
+    return sorted(
         value for value in candidates
-        if np.isfinite(value)
-        and value >= 0
-        and (value > 0 or float(baseline_value) == 0)
-    ))
-
-    return candidates
+        if np.isfinite(value) and value >= 0
+    )
 
 
 def select_rule_thresholds(
@@ -264,117 +285,119 @@ def select_rule_thresholds(
     calibration_features,
     validation_features,
     validation_labels,
-    baseline,
+    initial,
 ):
     """Select one rule's thresholds using Validation, not Test."""
     threshold_names = RULE_THRESHOLDS[rule_id]
 
-    baseline_predictions = get_rule_predictions(
-        validation_features, baseline
-    )
-    baseline_result = calculate_metrics(
+    initial_result = calculate_metrics(
         validation_labels,
-        baseline_predictions[rule_id],
+        get_rule_predictions(validation_features, initial)[rule_id],
     )
 
-    candidates = {
-        name: get_candidates(
-            calibration_features, name, baseline[name]
-        )
+    if not threshold_names:
+        return {}, initial_result, 0
+
+    candidate_lists = [
+        get_candidates(calibration_features, name, initial[name])
         for name in threshold_names
-    }
+    ]
 
-    best_thresholds = {
-        name: float(baseline[name]) for name in threshold_names
-    }
-    best_result = baseline_result
-    best_score = (
-        baseline_result["f1_score"],
-        baseline_result["precision"],
-        baseline_result["recall"],
-        -baseline_result["false_positive_rate"],
-    )
-
+    best_thresholds = None
+    best_result = None
+    best_score = None
     checked = 0
 
-    candidate_lists = [candidates[name] for name in threshold_names]
-
     for values in itertools.product(*candidate_lists):
-        trial_thresholds = baseline.copy()
-        trial_thresholds.update(dict(zip(threshold_names, values)))
+        trial = dict(initial)
+        trial.update(dict(zip(threshold_names, values)))
 
-        predictions = get_rule_predictions(
-            validation_features, trial_thresholds
-        )
         result = calculate_metrics(
-            validation_labels, predictions[rule_id]
+            validation_labels,
+            get_rule_predictions(validation_features, trial)[rule_id],
         )
         checked += 1
 
-        # Do not accept a rule with a higher Validation FPR than its baseline.
-        if (
-            result["false_positive_rate"]
-            > baseline_result["false_positive_rate"] + 1e-12
-        ):
+        if result["false_positive_rate"] > MAX_RULE_FPR + 1e-12:
             continue
 
         score = (
             result["f1_score"],
             result["precision"],
-            result["recall"],
             -result["false_positive_rate"],
         )
 
-        if score > best_score:
+        if best_score is None or score > best_score:
             best_score = score
             best_result = result
             best_thresholds = {
-                name: float(trial_thresholds[name])
-                for name in threshold_names
+                name: float(trial[name]) for name in threshold_names
             }
+
+    if best_thresholds is None:
+        # No candidate satisfies the alert budget: keep the initial value.
+        best_thresholds = {
+            name: float(initial[name]) for name in threshold_names
+        }
+        best_result = initial_result
 
     return best_thresholds, best_result, checked
 
 
-def evaluate_configuration(features, labels, thresholds):
+def evaluate_predictions(predictions, labels):
     """Evaluate all rules together and each rule separately."""
-    predictions = get_rule_predictions(features, thresholds)
+    combined = np.zeros(len(labels), dtype=bool)
+    individual = []
 
-    combined = np.zeros(len(features), dtype=bool)
-    individual_results = []
-
-    for rule_id in RULE_THRESHOLDS:
-        current = predictions[rule_id].to_numpy(dtype=bool)
+    for rule_id in RULE_ORDER:
+        current = np.asarray(predictions[rule_id], dtype=bool)
         combined |= current
-
-        individual_results.append({
+        individual.append({
             "rule_id": rule_id,
             **calculate_metrics(labels, current),
         })
 
-    overall_result = calculate_metrics(labels, combined)
-    return overall_result, individual_results, combined
+    return calculate_metrics(labels, combined), individual, combined
+
+
+def category_detection(attack_categories, labels, combined):
+    """Detection rate within each UNSW-NB15 attack category (Test only)."""
+    rows = []
+    attacks = labels == 1
+    categories = attack_categories[attacks]
+    detected = combined[attacks]
+
+    for category in sorted(set(categories)):
+        mask = categories == category
+        total = int(mask.sum())
+        found = int(detected[mask].sum())
+        rows.append({
+            "attack_cat": category,
+            "attacks": total,
+            "detected": found,
+            "missed": total - found,
+            "detection_rate": found / total if total else 0.0,
+        })
+
+    return rows
 
 
 def check_engine_result(features, combined_predictions, thresholds):
     """
-    Check that the rule conditions used above agree with DetectionEngine.
-
-    This small check helps ensure that the offline metrics use the same
-    rule logic as the application.
+    Check that the rule conditions used above agree with DetectionEngine,
+    so the offline metrics use the same logic as the application.
     """
-    sample = features.iloc[:min(1000, len(features))].copy()
-    rules = build_detection_rules(thresholds)
-    engine = DetectionEngine(rules)
-    incidents = engine.evaluate(sample)
+    sample = features.iloc[:min(5000, len(features))].copy()
+    incidents = DetectionEngine(
+        build_detection_rules(thresholds)
+    ).evaluate(sample)
 
     engine_predictions = pd.Series(False, index=sample.index)
     if not incidents.empty:
         engine_predictions.loc[incidents["source_record_id"]] = True
 
     expected = pd.Series(
-        combined_predictions[:len(sample)],
-        index=sample.index,
+        combined_predictions[:len(sample)], index=sample.index
     )
 
     if not engine_predictions.equals(expected):
@@ -384,195 +407,177 @@ def check_engine_result(features, combined_predictions, thresholds):
 
 
 def write_csv(file_path, rows):
-    pd.DataFrame(rows).to_csv(
-        file_path, index=False, encoding="utf-8-sig"
+    pd.DataFrame(rows).to_csv(file_path, index=False, encoding="utf-8-sig")
+
+
+def metric_line(result):
+    return (
+        f"TP={result['TP']:,}, FP={result['FP']:,}, "
+        f"TN={result['TN']:,}, FN={result['FN']:,}; "
+        f"Precision={result['precision']:.2%}; "
+        f"Recall={result['recall']:.2%}; "
+        f"F1={result['f1_score']:.2%}; "
+        f"FPR={result['false_positive_rate']:.2%}"
     )
 
+
+# ------------------------------------------------------------------
+# Main procedure
+# ------------------------------------------------------------------
 
 def run_calibration(seed):
     print("Loading the dataset through the project's Dataset Loader...")
     dataset = load_dataset()
 
     all_features = dataset.features
-    rule_features = prepare_rule_features(all_features)
 
-    labels = pd.to_numeric(
-        dataset.ground_truth["Label"], errors="raise"
-    )
-
+    labels = pd.to_numeric(dataset.ground_truth["Label"], errors="raise")
     if labels.isna().any() or not labels.isin([0, 1]).all():
         raise ValueError("Label must contain only 0 and 1.")
-
     labels = labels.astype("int8").to_numpy()
+
+    attack_categories = (
+        dataset.ground_truth["attack_cat"]
+        .astype("string").str.strip().fillna("Normal")
+        .replace("", "Normal")
+        .to_numpy(dtype=object)
+    )
 
     if len(all_features) != len(labels):
         raise ValueError("Feature and Label row counts do not match.")
 
+    columns = rule_feature_columns()
+    rule_features = all_features[columns]
+    version_1_features = all_features[list(VERSION_1_FEATURES)]
+
     print("Grouping identical complete feature rows...")
     group_ids = make_group_ids(all_features)
-
-    split_indexes, group_summary, split_counts = split_groups(
-        group_ids, labels, seed
-    )
-
+    split_indexes = split_groups(group_ids, labels, seed)
     calibration_index, validation_index, test_index = split_indexes
 
     x_calibration = rule_features.iloc[calibration_index]
     x_validation = rule_features.iloc[validation_index]
     x_test = rule_features.iloc[test_index]
-
-    y_calibration = labels[calibration_index]
     y_validation = labels[validation_index]
     y_test = labels[test_index]
 
     if min(len(x_calibration), len(x_validation), len(x_test)) == 0:
         raise RuntimeError("One of the data splits is empty.")
 
-    baseline = {
-        key: float(value)
-        for key, value in DETECTION_THRESHOLDS.items()
-    }
-    proposed = baseline.copy()
-
     mixed_groups = (
         pd.DataFrame({"group_id": group_ids, "label": labels})
-        .groupby("group_id")["label"]
-        .nunique()
+        .groupby("group_id")["label"].nunique()
     )
-    mixed_groups = mixed_groups[mixed_groups > 1]
+    mixed_group_count = int((mixed_groups > 1).sum())
 
     print(f"Total records: {len(all_features):,}")
-    print(
-        f"Calibration: {len(x_calibration):,}; "
-        f"Validation: {len(x_validation):,}; "
-        f"Test: {len(x_test):,}"
-    )
-    print(f"Groups with conflicting Label values: {len(mixed_groups):,}")
+    for name, index in zip(SPLIT_NAMES, split_indexes):
+        print(f"  {name}: {len(index):,} records, "
+              f"{int(labels[index].sum()):,} attacks")
     print("Selecting thresholds on Validation...")
 
+    initial = {
+        key: float(value)
+        for key, value in INITIAL_DETECTION_THRESHOLDS.items()
+    }
+    proposed = dict(initial)
     selection_rows = []
 
-    for rule_id, threshold_names in RULE_THRESHOLDS.items():
-        selected, result, candidate_count = select_rule_thresholds(
-            rule_id,
-            x_calibration,
-            x_validation,
-            y_validation,
-            baseline,
+    for rule_id in RULE_ORDER:
+        selected, result, checked = select_rule_thresholds(
+            rule_id, x_calibration, x_validation, y_validation, initial
         )
-
         proposed.update(selected)
 
-        for name in threshold_names:
+        names = RULE_THRESHOLDS[rule_id] or ("(no numeric threshold)",)
+        for name in names:
             selection_rows.append({
                 "rule_id": rule_id,
                 "threshold": name,
-                "baseline_value": baseline[name],
-                "selected_value": proposed[name],
-                "combinations_checked": candidate_count,
+                "initial_value": initial.get(name, ""),
+                "selected_value": proposed.get(name, ""),
+                "candidates_checked": checked,
                 "validation_precision": result["precision"],
                 "validation_recall": result["recall"],
                 "validation_f1": result["f1_score"],
                 "validation_fpr": result["false_positive_rate"],
             })
 
-        print(
-            f"{rule_id}: {selected} "
-            f"(Validation F1: {result['f1_score']:.4f})"
-        )
+        print(f"  {rule_id}: {selected or 'no threshold'} "
+              f"(Validation F1 {result['f1_score']:.4f}, "
+              f"FPR {result['false_positive_rate']:.4%})")
 
     # The Test part is used only after all thresholds have been selected.
-    baseline_overall, baseline_individual, baseline_predictions = (
-        evaluate_configuration(x_test, y_test, baseline)
-    )
-    proposed_overall, proposed_individual, proposed_predictions = (
-        evaluate_configuration(x_test, y_test, proposed)
-    )
+    configurations = {
+        "Version 1": version_1_predictions(
+            version_1_features.iloc[test_index]
+        ),
+        "Initial": get_rule_predictions(x_test, initial),
+        "Proposed": get_rule_predictions(x_test, proposed),
+    }
 
-    check_engine_result(x_test, proposed_predictions, proposed)
-
-    RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
-
-    (RESULTS_FOLDER / "baseline_thresholds.json").write_text(
-        json.dumps(baseline, indent=4), encoding="utf-8"
-    )
-    (RESULTS_FOLDER / "proposed_thresholds.json").write_text(
-        json.dumps(proposed, indent=4), encoding="utf-8"
-    )
-
-    write_csv(
-        RESULTS_FOLDER / "threshold_selection_validation.csv",
-        selection_rows,
-    )
-
-    write_csv(
-        RESULTS_FOLDER / "test_overall_comparison.csv",
-        [
-            {"configuration": "Baseline", **baseline_overall},
-            {"configuration": "Proposed", **proposed_overall},
-        ],
-    )
-
+    overall_rows = []
     individual_rows = []
-    for old_result, new_result in zip(
-        baseline_individual, proposed_individual
-    ):
-        individual_rows.append({
-            "configuration": "Baseline",
-            **old_result,
-        })
-        individual_rows.append({
-            "configuration": "Proposed",
-            **new_result,
-        })
+    combined_by_name = {}
 
-    write_csv(
-        RESULTS_FOLDER / "test_individual_rule_comparison.csv",
-        individual_rows,
+    for name, predictions in configurations.items():
+        overall, individual, combined = evaluate_predictions(
+            predictions, y_test
+        )
+        combined_by_name[name] = (overall, individual, combined)
+        overall_rows.append({"configuration": name, **overall})
+        for row in individual:
+            individual_rows.append({"configuration": name, **row})
+
+    check_engine_result(
+        x_test, combined_by_name["Proposed"][2], proposed
     )
+
+    category_rows = []
+    for name in ("Version 1", "Proposed"):
+        for row in category_detection(
+            attack_categories[test_index], y_test,
+            combined_by_name[name][2],
+        ):
+            category_rows.append({"configuration": name, **row})
 
     split_rows = []
-    split_names = ("Calibration", "Validation", "Test")
-
-    for split_number, split_name in enumerate(split_names):
-        split_labels = labels[split_indexes[split_number]]
+    for name, index in zip(SPLIT_NAMES, split_indexes):
+        split_labels = labels[index]
         split_rows.append({
-            "split": split_name,
+            "split": name,
             "records": len(split_labels),
             "attacks": int(np.sum(split_labels == 1)),
             "normal": int(np.sum(split_labels == 0)),
             "attack_share": float(np.mean(split_labels == 1)),
-            "unique_feature_groups": len(
-                np.unique(group_ids[split_indexes[split_number]])
-            ),
+            "unique_feature_groups": len(np.unique(group_ids[index])),
         })
 
+    RESULTS_FOLDER.mkdir(parents=True, exist_ok=True)
+    for old_file in RESULTS_FOLDER.glob("*"):
+        if old_file.is_file():
+            old_file.unlink()
+
+    (RESULTS_FOLDER / "initial_thresholds.json").write_text(
+        json.dumps(initial, indent=4), encoding="utf-8"
+    )
+    (RESULTS_FOLDER / "proposed_thresholds.json").write_text(
+        json.dumps(proposed, indent=4), encoding="utf-8"
+    )
     write_csv(RESULTS_FOLDER / "split_summary.csv", split_rows)
-
-    conflict_rows = []
-    if len(mixed_groups):
-        conflict_data = pd.DataFrame({
-            "group_id": group_ids,
-            "label": labels,
-        })
-        for group_id, group in conflict_data.groupby("group_id"):
-            if group["label"].nunique() > 1:
-                conflict_rows.append({
-                    "group_id": int(group_id),
-                    "records": len(group),
-                    "attack_labels": int((group["label"] == 1).sum()),
-                    "normal_labels": int((group["label"] == 0).sum()),
-                    "minimum_unavoidable_errors": min(
-                        int((group["label"] == 1).sum()),
-                        int((group["label"] == 0).sum()),
-                    ),
-                })
-
-    if conflict_rows:
-        write_csv(
-            RESULTS_FOLDER / "conflicting_label_groups.csv",
-            conflict_rows,
-        )
+    write_csv(
+        RESULTS_FOLDER / "threshold_selection_validation.csv",
+        selection_rows,
+    )
+    write_csv(RESULTS_FOLDER / "test_overall_comparison.csv", overall_rows)
+    write_csv(
+        RESULTS_FOLDER / "test_individual_rule_comparison.csv",
+        individual_rows,
+    )
+    write_csv(
+        RESULTS_FOLDER / "test_attack_category_detection.csv",
+        category_rows,
+    )
 
     report = [
         "CSIMS DETECTION RULE CALIBRATION",
@@ -584,71 +589,71 @@ def run_calibration(seed):
         "",
         "DATA SPLIT",
         "----------",
-        "Complete feature rows were kept in one split.",
-        "The split assignment considered row count, attack count and normal count.",
-        "Label and attack_cat were not included in feature grouping.",
-        f"Groups with conflicting Label values: {len(mixed_groups):,}",
+        "Identical complete feature rows form one group; a group is never",
+        "divided between two parts. Groups were assigned at random,",
+        "stratified by Label (60% / 20% / 20%).",
+        f"Groups with conflicting Label values: {mixed_group_count:,}",
+    ]
+    for row in split_rows:
+        report.append(
+            f"{row['split']}: {row['records']:,} records, "
+            f"{row['attacks']:,} attacks ({row['attack_share']:.2%})"
+        )
+
+    report += [
         "",
         "GROUND TRUTH",
         "------------",
-        "Label was used only for split balancing and evaluation.",
-        "The Detection Engine received feature columns only.",
-        "attack_cat was not used for threshold selection.",
+        "Label was used only for split stratification, threshold selection",
+        "on Validation and evaluation. The rules received feature columns",
+        "only. attack_cat was used only for the category analysis on Test.",
         "",
         "THRESHOLD SELECTION",
         "-------------------",
-        "Candidate values were calculated from Calibration features.",
-        "Validation was used to select thresholds.",
-        "Each rule was constrained not to exceed its baseline Validation FPR.",
-        "Test was not used for candidate generation or threshold selection.",
-        "",
-        "TEST RESULTS — ALL RULES",
-        "-------------------------",
+        "Candidates: the initial value and quantiles of the Calibration part.",
+        "Selection: highest Validation F1-score for each rule, with the",
+        f"rule's Validation FPR not exceeding {MAX_RULE_FPR:.0%}.",
+        "Test was not used for candidate generation or selection.",
     ]
-
-    for name, result in (
-        ("Baseline", baseline_overall),
-        ("Proposed", proposed_overall),
-    ):
+    for row in selection_rows:
         report.append(
-            f"{name}: TP={result['TP']:,}, FP={result['FP']:,}, "
-            f"TN={result['TN']:,}, FN={result['FN']:,}"
-        )
-        report.append(
-            f"Precision={result['precision']:.4%}; "
-            f"Recall={result['recall']:.4%}; "
-            f"F1={result['f1_score']:.4%}; "
-            f"FPR={result['false_positive_rate']:.4%}; "
-            f"Accuracy={result['accuracy']:.4%}"
+            f"{row['rule_id']} {row['threshold']}: "
+            f"{row['initial_value']} -> {row['selected_value']}"
         )
 
-    report.extend([
+    report += ["", "TEST RESULTS - ALL RULES", "------------------------"]
+    for name, (overall, _, _) in combined_by_name.items():
+        report.append(f"{name}: {metric_line(overall)}")
+
+    report += ["", "TEST RESULTS - INDIVIDUAL RULES", "-------------------------------"]
+    for name, (_, individual, _) in combined_by_name.items():
+        report.append(name)
+        for row in individual:
+            report.append(f"  {row['rule_id']}: {metric_line(row)}")
+
+    report += [
         "",
         "NOTES",
         "-----",
+        "Version 1 is the original rule set before redesign.",
         "Each source record is counted once in the overall result, even if",
-        "more than one detection rule matches it.",
-        "Individual rule metrics are binary attack-versus-normal results.",
-        "The script uses the real conditions from detection/rules.py.",
-        "A small consistency check compares rule predictions with DetectionEngine.",
-        "Groups with conflicting Label values are listed separately.",
-        "A deterministic feature-only rule cannot assign different predictions",
-        "to identical feature rows, even when their dataset labels conflict.",
-        "The split prevents exact complete-feature duplicates from crossing parts.",
-        "It does not prove independence between related network flows.",
-        "The proposed thresholds are not copied into detection/config.py.",
+        "more than one rule matches it. Individual rule metrics compare one",
+        "rule with the binary Label, so a rule aimed at one kind of",
+        "behaviour cannot reach a high recall on all attacks by itself.",
+        "The split prevents exact duplicates from crossing parts; it does",
+        "not prove independence between related network flows.",
         "Do not choose thresholds again based on Test results.",
-    ])
+    ]
 
     (RESULTS_FOLDER / "calibration_report.txt").write_text(
         "\n".join(report) + "\n", encoding="utf-8"
     )
 
-    print("\nCalibration finished.")
-    print(f"Baseline Test F1: {baseline_overall['f1_score']:.4%}")
-    print(f"Proposed Test F1: {proposed_overall['f1_score']:.4%}")
+    print("\nTest results (all rules):")
+    for name, (overall, _, _) in combined_by_name.items():
+        print(f"  {name}: {metric_line(overall)}")
     print(f"Results saved to: {RESULTS_FOLDER}")
-    print("The production configuration was not changed.")
+    print("detection/config.py was not changed.")
 
 
 def main():
@@ -656,13 +661,10 @@ def main():
         description="Calibrate CSIMS detection thresholds."
     )
     parser.add_argument(
-        "--seed",
-        type=int,
-        default=2026,
+        "--seed", type=int, default=2026,
         help="Seed used for the grouped data split.",
     )
     args = parser.parse_args()
-
     run_calibration(args.seed)
 
 

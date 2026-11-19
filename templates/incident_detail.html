@@ -375,8 +375,7 @@
                 Dashboard
             </a>
 
-            <a href="{{ url_for('dashboard') }}"
-            class="nav-link active">
+            <a href="{{ url_for('incidents') }}" class="nav-link">
                 <span class="nav-icon">♟</span>
                 Incidents
             </a>
@@ -413,7 +412,10 @@
                 <strong>{{ session.get('user', 'User') }}</strong>
                 <span>{{ session.get('role', '') }}</span>
             </div>
-
+            <a href="{{ url_for('change_password_page') }}"
+                class="logout-link"
+                title="Change password"
+                style="margin-right: 10px;">⚿</a>
             <form method="POST" action="{{ url_for('logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
@@ -439,7 +441,7 @@
                 <div class="breadcrumb">
                     <a href="{{ url_for('dashboard') }}">Dashboard</a>
                     &nbsp; › &nbsp;
-                    <a href="{{ url_for('dashboard') }}">Incidents</a>
+                    <a href="{{ url_for('incidents') }}">Incidents</a>
                     &nbsp; › &nbsp;
                     Incident #{{ incident.id }}
                 </div>
@@ -507,7 +509,7 @@
                         </p>
                     </div>
 
-                    <a href="{{ url_for('dashboard') }}"
+                    <a href="{{ url_for('incidents') }}"
                     class="back-link">
                         ← Back to Incidents
                     </a>
@@ -570,7 +572,7 @@
                             </div>
 
                             <div class="information-row">
-                                <span class="information-label">Detected At</span>
+                                <span class="information-label">Detected At (UTC)</span>
                                 <span class="information-value">
                                     {{ incident.detected_at }}
                                 </span>
@@ -722,7 +724,7 @@
 
                                                 <div>
                                                     <span class="rule-code">
-                                                        Rule ID: {{ rule.rule_id }}
+                                                        Rule ID: {{ rule.code or rule.rule_id }}
                                                     </span>
 
                                                     <h3>{{ rule.name }}</h3>
@@ -872,6 +874,8 @@
     </main>
 
 </div>
+
+<script src="{{ url_for('static', filename='js/preserve-scroll.js') }}"></script>
 
 </body>
 </html>

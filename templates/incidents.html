@@ -1,0 +1,546 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CSIMS | Incidents</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body data-role="{{ session.get('role', '') }}">
+
+    <div class="app-layout">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">C</div>
+                <div>
+                    <h2>CSIMS</h2>
+                    <span>Security Operations</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">WORKSPACE</div>
+
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('dashboard') }}" class="nav-link">
+                    <span class="nav-icon">▦</span>
+                    Dashboard
+                </a>
+
+                <a href="{{ url_for('incidents') }}" class="nav-link active">
+                    <span class="nav-icon">◈</span>
+                    Incidents
+                </a>
+
+                {% if session.get('role') == 'Administrator' %}
+                <div class="sidebar-section">ADMINISTRATION</div>
+
+                <a href="{{ url_for('rules') }}" class="nav-link">
+                    <span class="nav-icon">⚙</span>
+                    Detection Rules
+                </a>
+
+                <a href="{{ url_for('admin_panel') }}" class="nav-link">
+                    <span class="nav-icon">♙</span>
+                    Users
+                </a>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="user-avatar">
+                    {{ session.get('user', 'U')[0]|upper }}
+                </div>
+                <div class="user-info">
+                    <strong>{{ session.get('user', 'User') }}</strong>
+                    <span>{{ session.get('role', '') }}</span>
+                </div>
+                <a href="{{ url_for('change_password_page') }}"
+                   class="logout-link"
+                   title="Change password"
+                   style="margin-right: 10px;">⚿</a>
+                <form method="POST" action="{{ url_for('logout') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="logout-link" title="Logout">↪</button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+
+            <header class="topbar">
+                <div>
+                    <div class="breadcrumb">Workspace / Incidents</div>
+                    <h1>Incidents</h1>
+                </div>
+
+                <div class="topbar-right">
+                    <span class="system-status">
+                        <span class="status-dot"></span>
+                        System Operational
+                    </span>
+                </div>
+            </header>
+
+            <div class="content-area">
+
+                <!-- FLASH MESSAGES -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">
+                            {{ message }}
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- INCIDENT TABLE -->
+                <section class="panel">
+
+                    <div class="panel-header">
+                        <div>
+                            <h2>All Incidents</h2>
+                            <p>Search, filter and manage detected security incidents</p>
+                        </div>
+                        <span class="incident-count" id="incident-count">
+                            {{ incidents|length }} records
+                        </span>
+                    </div>
+
+                    <!-- SEARCH AND FILTER -->
+                    <form method="GET" action="{{ url_for('incidents') }}" class="filter-bar">
+
+                        <input
+                            type="text"
+                            name="q"
+                            placeholder="Search incidents..."
+                            value="{{ request.args.get('q', '') }}"
+                        >
+
+                        <select name="severity">
+                            <option value="">All Severities</option>
+                            {% for option in severity_options %}
+                            <option value="{{ option }}" {% if request.args.get('severity') == option %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select name="status">
+                            <option value="">All Statuses</option>
+                            {% for option in status_options %}
+                            <option value="{{ option }}" {% if request.args.get('status') == option %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select name="category">
+                            <option value="">All Categories</option>
+                            {% for option in category_options %}
+                            <option value="{{ option }}" {% if request.args.get('category') == option %}selected{% endif %}>{{ option }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <button type="submit" class="btn btn-primary">Apply Filters</button>
+                        <a href="{{ url_for('incidents') }}" class="btn btn-secondary">Reset</a>
+
+                    </form>
+
+                    <div class="table-wrapper">
+                        <table class="incidents-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Incident</th>
+                                    <th>Category</th>
+                                    <th>Severity</th>
+                                    <th>Status</th>
+                                    <th>Source Record ID</th>
+                                    <th>Detected At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="incidents-tbody">
+                                {% for incident in incidents %}
+                                <tr data-incident-id="{{ incident.id }}">
+
+                                    <td class="incident-id">
+                                        #{{ incident.id }}
+                                    </td>
+
+                                    <td>
+                                        <a
+                                            href="{{ url_for('incident_detail', id=incident.id) }}"
+                                            class="incident-title"
+                                        >
+                                            {{ incident.category }}
+                                        </a>
+                                        <div class="incident-description">
+                                            {{ incident.description }}
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        {{ incident.category or 'Not classified' }}
+                                    </td>
+
+                                    <td>
+                                        <span class="severity-badge severity-{{ incident.severity|lower }}">
+                                            {{ incident.severity }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="status-badge status-{{ incident.status|lower|replace(' ', '-') }}">
+                                            {{ incident.status }}
+                                        </span>
+                                    </td>
+
+                                    <td class="ip-address">
+                                        {{ incident.source_record_id }}
+                                    </td>
+
+                                    <td class="date-cell">
+                                        {{ incident.detected_at }}
+                                    </td>
+
+                                    <td>
+                                        <div class="action-cell">
+                                            <a
+                                                href="{{ url_for('incident_detail', id=incident.id) }}"
+                                                class="btn btn-small btn-secondary"
+                                            >
+                                                View
+                                            </a>
+
+                                            {% if session.get('role') in ['Administrator', 'Security Analyst'] %}
+                                                {% if incident.status == 'New' %}
+                                                <form method="POST" action="{{ url_for('update_status', id=incident.id, status='In Progress') }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-small btn-primary">
+                                                        Start
+                                                    </button>
+                                                </form>
+
+                                                {% elif incident.status == 'In Progress' %}
+                                                <form method="POST" action="{{ url_for('update_status', id=incident.id, status='Resolved') }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-small btn-primary">
+                                                        Resolve
+                                                    </button>
+                                                </form>
+
+                                                {% elif incident.status == 'Resolved' %}
+                                                <form method="POST" action="{{ url_for('close_incident', id=incident.id) }}">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <button type="submit" class="btn btn-small btn-secondary">
+                                                        Close
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="empty-state" id="empty-incidents-row">
+                                        No incidents found.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+<div class="panel-footer" id="incident-footer"
+    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+
+    <span id="incident-range">
+        Showing {{ start_record }}–{{ end_record }}
+        of {{ total_incidents }} incidents
+    </span>
+
+    <div id="incident-pagination" style="display: flex; align-items: center; gap: 8px;">
+
+        {% if page > 1 %}
+            <a href="{{ url_for('incidents',
+                                page=page - 1,
+                                q=request.args.get('q') or None,
+                                severity=request.args.get('severity') or None,
+                                status=request.args.get('status') or None,
+                                category=request.args.get('category') or None) }}"
+                class="btn btn-secondary">
+                Previous
+            </a>
+        {% endif %}
+
+        <span id="incident-page-info">
+            Page {{ page }} of {{ total_pages }}
+        </span>
+
+        {% if page < total_pages %}
+            <a id="incident-next-link" href="{{ url_for('incidents',
+                                page=page + 1,
+                                q=request.args.get('q') or None,
+                                severity=request.args.get('severity') or None,
+                                status=request.args.get('status') or None,
+                                category=request.args.get('category') or None) }}"
+                class="btn btn-secondary">
+                Next
+            </a>
+        {% endif %}
+
+    </div>
+</div>
+
+                </section>
+
+            </div>
+        </main>
+
+    </div>
+
+
+    <script>
+    (() => {
+        let lastIncidentId = Number({{ latest_incident_id|default(0) }});
+        let requestInProgress = false;
+
+        const role = document.body.dataset.role;
+        const tbody = document.getElementById("incidents-tbody");
+        const countElement = document.getElementById("incident-count");
+
+        const queryParameters = new URLSearchParams(window.location.search);
+        const searchQuery = queryParameters.get("q") || "";
+        const severityFilter = queryParameters.get("severity") || "";
+        const statusFilter = queryParameters.get("status") || "";
+        const categoryFilter = queryParameters.get("category") || "";
+
+        const apiUrl = new URL("{{ url_for('dashboard_updates') }}", window.location.origin);
+        if (searchQuery) apiUrl.searchParams.set("q", searchQuery);
+        if (severityFilter) apiUrl.searchParams.set("severity", severityFilter);
+        if (statusFilter) apiUrl.searchParams.set("status", statusFilter);
+        if (categoryFilter) apiUrl.searchParams.set("category", categoryFilter);
+
+        const detailUrlTemplate = "{{ url_for('incident_detail', id=0) }}";
+        const startUrlTemplate = "{{ url_for('update_status', id=0, status='In Progress') }}";
+        const resolveUrlTemplate = "{{ url_for('update_status', id=0, status='Resolved') }}";
+        const closeUrlTemplate = "{{ url_for('close_incident', id=0) }}";
+        const csrfToken = "{{ csrf_token() }}";
+        const perPage = Number({{ per_page }});
+        let totalIncidents = Number({{ total_incidents }});
+
+        function makeCell(text, className) {
+            const cell = document.createElement("td");
+            if (className) cell.className = className;
+            cell.textContent = text == null || text === "" ? "N/A" : String(text);
+            return cell;
+        }
+
+        function makeActionForm(action, label, buttonClass) {
+            const form = document.createElement("form");
+            form.method = "POST";
+            form.action = action;
+
+            const csrfInput = document.createElement("input");
+            csrfInput.type = "hidden";
+            csrfInput.name = "csrf_token";
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+
+            const button = document.createElement("button");
+            button.type = "submit";
+            button.className = buttonClass;
+            button.textContent = label;
+
+            form.appendChild(button);
+            return form;
+        }
+
+        function buildIncidentRow(incident) {
+            const row = document.createElement("tr");
+            row.dataset.incidentId = incident.id;
+
+            row.appendChild(makeCell("#" + incident.id, "incident-id"));
+
+            const detailsCell = document.createElement("td");
+            const title = document.createElement("a");
+            title.href = detailUrlTemplate.replace(/0$/, String(incident.id));
+            title.className = "incident-title";
+            title.textContent = incident.category || "Unclassified incident";
+            detailsCell.appendChild(title);
+
+            const description = document.createElement("div");
+            description.className = "incident-description";
+            description.textContent = incident.description || "";
+            detailsCell.appendChild(description);
+            row.appendChild(detailsCell);
+
+            row.appendChild(makeCell(incident.category || "Not classified"));
+
+            const severityCell = document.createElement("td");
+            const severityBadge = document.createElement("span");
+            severityBadge.className = "severity-badge severity-" +
+                String(incident.severity || "").toLowerCase();
+            severityBadge.textContent = incident.severity || "N/A";
+            severityCell.appendChild(severityBadge);
+            row.appendChild(severityCell);
+
+            const statusCell = document.createElement("td");
+            const statusBadge = document.createElement("span");
+            statusBadge.className = "status-badge status-" +
+                String(incident.status || "").toLowerCase().replaceAll(" ", "-");
+            statusBadge.textContent = incident.status || "N/A";
+            statusCell.appendChild(statusBadge);
+            row.appendChild(statusCell);
+
+            row.appendChild(makeCell(incident.source_record_id, "source-record-id"));
+            row.appendChild(makeCell(incident.detected_at, "date-cell"));
+
+            const actionCell = document.createElement("td");
+            const actions = document.createElement("div");
+            actions.className = "action-cell";
+
+            const viewLink = document.createElement("a");
+            viewLink.href = detailUrlTemplate.replace(/0$/, String(incident.id));
+            viewLink.className = "btn btn-small btn-secondary";
+            viewLink.textContent = "View";
+            actions.appendChild(viewLink);
+
+            if (role === "Security Analyst" || role === "Administrator") {
+                if (incident.status === "New") {
+                    actions.appendChild(makeActionForm(
+                        startUrlTemplate.replace("/0/", "/" + incident.id + "/"),
+                        "Start",
+                        "btn btn-small btn-primary"
+                    ));
+                } else if (incident.status === "In Progress") {
+                    actions.appendChild(makeActionForm(
+                        resolveUrlTemplate.replace("/0/", "/" + incident.id + "/"),
+                        "Resolve",
+                        "btn btn-small btn-primary"
+                    ));
+                } else if (incident.status === "Resolved") {
+                    actions.appendChild(makeActionForm(
+                        closeUrlTemplate.replace(/0$/, String(incident.id)),
+                        "Close",
+                        "btn btn-small btn-secondary"
+                    ));
+                }
+            }
+
+            actionCell.appendChild(actions);
+            row.appendChild(actionCell);
+
+            return row;
+        }
+
+        // Keep the table footer consistent with incidents added by polling.
+        function updateFooter() {
+            const emptyRow = document.getElementById("empty-incidents-row");
+            if (emptyRow && tbody.querySelector("tr[data-incident-id]")) {
+                emptyRow.closest("tr").remove();
+            }
+
+            const shownRows = tbody.querySelectorAll("tr[data-incident-id]").length;
+            const totalPages = Math.max(1, Math.ceil(totalIncidents / perPage));
+
+            document.getElementById("incident-range").textContent =
+                "Showing " + (shownRows ? 1 : 0) + "–" + shownRows +
+                " of " + totalIncidents + " incidents";
+            document.getElementById("incident-page-info").textContent =
+                "Page 1 of " + totalPages;
+
+            const pagination = document.getElementById("incident-pagination");
+            if (totalPages > 1 && !document.getElementById("incident-next-link")) {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set("page", "2");
+                const nextLink = document.createElement("a");
+                nextLink.id = "incident-next-link";
+                nextLink.href = nextUrl.toString();
+                nextLink.className = "btn btn-secondary";
+                nextLink.textContent = "Next";
+                pagination.appendChild(nextLink);
+            }
+        }
+
+        async function pollIncidents() {
+    if (requestInProgress) return;
+    requestInProgress = true;
+
+    try {
+        const url = new URL(apiUrl);
+        url.searchParams.set("after_id", String(lastIncidentId));
+
+        const response = await fetch(url, {
+            method: "GET",
+            credentials: "same-origin",
+            headers: { "Accept": "application/json" }
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                "Dashboard update request failed: " + response.status
+            );
+        }
+
+        const data = await response.json();
+        const newIncidents = data.incidents || [];
+
+        if (Number.isFinite(Number(data.latest_id))) {
+            lastIncidentId = Math.max(
+                lastIncidentId,
+                Number(data.latest_id)
+            );
+        }
+
+
+                const currentPage = Math.max(
+            1,
+            Number(new URLSearchParams(window.location.search).get("page")) || 1
+        );
+
+        if (newIncidents.length > 0 && currentPage === 1) {
+            newIncidents.forEach(incident => {
+                const alreadyExists = tbody.querySelector(
+                    `tr[data-incident-id="${incident.id}"]`
+                );
+
+                if (!alreadyExists) {
+                    totalIncidents += 1;
+                    tbody.insertBefore(
+                        buildIncidentRow(incident),
+                        tbody.firstChild
+                    );
+                }
+            });
+
+            // keep the current page limited to 20 incidents
+            while (tbody.querySelectorAll("tr[data-incident-id]").length > 20) {
+                const rows = tbody.querySelectorAll("tr[data-incident-id]");
+                rows[rows.length - 1].remove();
+            }
+
+            countElement.textContent =
+                tbody.querySelectorAll("tr[data-incident-id]").length + " records";
+            updateFooter();
+        }
+
+    } catch (error) {
+        console.error(error);
+    } finally {
+        requestInProgress = false;
+    }
+}
+
+        // Check frequently so new detections appear without reloading the page.
+        window.setInterval(pollIncidents, 1500);
+    })();
+    </script>
+
+    <script src="{{ url_for('static', filename='js/preserve-scroll.js') }}"></script>
+</body>
+    </html>

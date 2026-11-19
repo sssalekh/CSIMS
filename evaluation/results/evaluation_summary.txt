@@ -11,39 +11,39 @@ regardless of runtime enable/disable toggles.
 
 LEVEL 1 — OVERALL BINARY EVALUATION
 ------------------------------------
-TP: 3,873
-FP: 29,921
-TN: 647,865
-FN: 18,342
-Precision: 11.46%
-Recall: 17.43%
-F1-score: 13.83%
-False Positive Rate: 4.41%
-Accuracy: 93.11%
+TP: 21,931
+FP: 9,797
+TN: 667,989
+FN: 284
+Precision: 69.12%
+Recall: 98.72%
+F1-score: 81.31%
+False Positive Rate: 1.45%
+Accuracy: 98.56%
 
 LEVEL 2 — INDIVIDUAL RULE EVALUATION
 -------------------------------------
 Each rule is evaluated independently against binary Label.
 
 DOS-001 — High network traffic
-  TP=3,143, FP=11,582, TN=666,204, FN=19,072
-  Precision=21.34%; Recall=14.15%; F1=17.02%; FPR=1.71%
+  TP=3,068, FP=4,530, TN=673,256, FN=19,147
+  Precision=40.38%; Recall=13.81%; F1=20.58%; FPR=0.67%
 
-REC-001 — Repeated communication pattern
-  TP=200, FP=8,229, TN=669,557, FN=22,015
-  Precision=2.37%; Recall=0.90%; F1=1.31%; FPR=1.21%
+REC-001 — Unanswered connection attempt
+  TP=5,556, FP=1,371, TN=676,415, FN=16,659
+  Precision=80.21%; Recall=25.01%; F1=38.13%; FPR=0.20%
 
-EXP-001 — Unusual application-level activity
-  TP=0, FP=4,076, TN=673,710, FN=22,215
-  Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.60%
+EXP-001 — Abnormal TCP handshake delay
+  TP=9,393, FP=4,505, TN=673,281, FN=12,822
+  Precision=67.59%; Recall=42.28%; F1=52.02%; FPR=0.66%
 
-GEN-001 — High data transfer volume
-  TP=668, FP=6,434, TN=671,352, FN=21,547
-  Precision=9.41%; Recall=3.01%; F1=4.56%; FPR=0.95%
+GEN-001 — Non-standard network protocol
+  TP=3,434, FP=7, TN=677,779, FN=18,781
+  Precision=99.80%; Recall=15.46%; F1=26.77%; FPR=0.00%
 
-CON-001 — High connection frequency
-  TP=0, FP=3,994, TN=673,792, FN=22,215
-  Precision=0.00%; Recall=0.00%; F1=0.00%; FPR=0.59%
+CON-001 — Unanswered short DNS request
+  TP=6,924, FP=65, TN=677,721, FN=15,291
+  Precision=99.07%; Recall=31.17%; F1=47.42%; FPR=0.01%
 
 LEVEL 3 — ATTACK-CATEGORY ANALYSIS
 -----------------------------------
@@ -51,16 +51,16 @@ All rules are considered together. Detection rate is calculated within
 each UNSW-NB15 attack_cat group. No one-to-one mapping between a CSIMS
 rule and an UNSW-NB15 attack category is assumed.
 
-Analysis: 190/526 detected (36.12%); 336 missed
-Backdoors: 192/534 detected (35.96%); 342 missed
-DoS: 300/1,167 detected (25.71%); 867 missed
-Exploits: 876/5,409 detected (16.20%); 4,533 missed
-Fuzzers: 1,137/5,051 detected (22.51%); 3,914 missed
-Generic: 886/7,522 detected (11.78%); 6,636 missed
-Reconnaissance: 226/1,759 detected (12.85%); 1,533 missed
-Shellcode: 64/223 detected (28.70%); 159 missed
-Worms: 2/24 detected (8.33%); 22 missed
-ALL_ATTACKS: 3,873/22,215 detected (17.43%); 18,342 missed
+Analysis: 526/526 detected (100.00%); 0 missed
+Backdoors: 525/534 detected (98.31%); 9 missed
+DoS: 1,128/1,167 detected (96.66%); 39 missed
+Exploits: 5,286/5,409 detected (97.73%); 123 missed
+Fuzzers: 4,982/5,051 detected (98.63%); 69 missed
+Generic: 7,497/7,522 detected (99.67%); 25 missed
+Reconnaissance: 1,740/1,759 detected (98.92%); 19 missed
+Shellcode: 223/223 detected (100.00%); 0 missed
+Worms: 24/24 detected (100.00%); 0 missed
+ALL_ATTACKS: 21,931/22,215 detected (98.72%); 284 missed
 
 INTERPRETATION NOTES
 --------------------

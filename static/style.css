@@ -1,13 +1,13 @@
 
 /* ==========================================================
-   CSIMS — CYBERSECURITY INCIDENT MANAGEMENT SYSTEM
-   Shared light UI design system
-   Visual reference: approved CSIMS dashboard concept
+CSIMS — CYBERSECURITY INCIDENT MANAGEMENT SYSTEM
+Shared light UI design system
+Visual reference: approved CSIMS dashboard concept
    ========================================================== */
 
 
 /* ==========================================================
-   1. DESIGN TOKENS
+1. DESIGN TOKENS
    ========================================================== */
 
 :root {
@@ -57,7 +57,7 @@
 
 
 /* ==========================================================
-   2. RESET AND GENERAL
+2. RESET AND GENERAL
    ========================================================== */
 
 * {
@@ -130,7 +130,7 @@ hr {
 
 
 /* ==========================================================
-   3. MAIN APPLICATION LAYOUT
+3. MAIN APPLICATION LAYOUT
    ========================================================== */
 
 .app-layout {
@@ -153,13 +153,20 @@ hr {
 
 
 /* ==========================================================
-   4. SIDEBAR
+4. SIDEBAR
    ========================================================== */
 
 .sidebar {
     width: var(--sidebar-width);
     min-width: var(--sidebar-width);
     min-height: 100vh;
+
+    /* sidebar sticky */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    align-self: flex-start;
+    overflow-y: auto;
 
     display: flex;
     flex-direction: column;
@@ -340,7 +347,7 @@ hr {
 
 
 /* ==========================================================
-   5. TOPBAR
+5. TOPBAR
    ========================================================== */
 
 .topbar {
@@ -401,7 +408,7 @@ hr {
 
 
 /* ==========================================================
-   6. STATISTICS CARDS
+6. STATISTICS CARDS
    ========================================================== */
 
 .stats-grid {
@@ -501,7 +508,7 @@ hr {
 
 
 /* ==========================================================
-   7. PANELS AND CARDS
+7. PANELS AND CARDS
    ========================================================== */
 
 .panel,
@@ -555,7 +562,7 @@ hr {
 
 
 /* ==========================================================
-   8. FILTER BAR
+8. FILTER BAR
    ========================================================== */
 
 .filter-bar {
@@ -602,7 +609,7 @@ hr {
 
 
 /* ==========================================================
-   9. FORMS AND INPUTS
+9. FORMS AND INPUTS
    ========================================================== */
 
 input,
@@ -663,7 +670,7 @@ form label {
 
 
 /* ==========================================================
-   10. BUTTONS
+10. BUTTONS
    ========================================================== */
 
 .btn,
@@ -755,7 +762,7 @@ button:disabled,
 .action-cell {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
 }
 
@@ -765,7 +772,7 @@ button:disabled,
 
 
 /* ==========================================================
-   11. TABLES
+11. TABLES
    ========================================================== */
 
 .table-wrapper {
@@ -906,7 +913,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   12. SEVERITY BADGES
+12. SEVERITY BADGES
    ========================================================== */
 
 .severity-badge,
@@ -946,7 +953,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   13. STATUS BADGES
+13. STATUS BADGES
    ========================================================== */
 
 .status-new {
@@ -971,7 +978,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   14. FLASH MESSAGES
+14. FLASH MESSAGES
    ========================================================== */
 
 .flash-message,
@@ -1012,8 +1019,8 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   15. LEGACY PAGE STRUCTURE
-   Compatibility for templates being redesigned next.
+15. LEGACY PAGE STRUCTURE
+Compatibility for templates being redesigned next.
    ========================================================== */
 
 .header {
@@ -1081,7 +1088,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   16. LOGIN AND INITIAL SETUP
+16. LOGIN AND INITIAL SETUP
    ========================================================== */
 
 .login-page {
@@ -1190,7 +1197,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   17. INCIDENT DETAILS — COMPATIBILITY
+17. INCIDENT DETAILS — COMPATIBILITY
    ========================================================== */
 
 .detail-page p {
@@ -1239,7 +1246,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   18. ADMINISTRATION AND RULE MANAGEMENT
+18. ADMINISTRATION AND RULE MANAGEMENT
    ========================================================== */
 
 .table-box form,
@@ -1289,7 +1296,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   19. SCROLLBARS
+19. SCROLLBARS
    ========================================================== */
 
 .table-wrapper::-webkit-scrollbar,
@@ -1315,7 +1322,7 @@ table tbody tr:last-child td {
 
 
 /* ==========================================================
-   20. RESPONSIVE DESIGN
+20. RESPONSIVE DESIGN
    ========================================================== */
 
 @media (max-width: 1200px) {
@@ -1362,6 +1369,12 @@ table tbody tr:last-child td {
         width: 100%;
         min-width: 0;
         min-height: auto;
+
+        /* On narrow screens the sidebar becomes a top bar and scrolls
+           with the page. */
+        position: static;
+        height: auto;
+        overflow-y: visible;
     }
 
     .sidebar-brand {
@@ -1459,5 +1472,117 @@ table tbody tr:last-child td {
 
     .login-box h2 {
         font-size: 22px;
+    }
+}
+
+
+
+/* ==========================================================
+FLASH NOTIFICATIONS (shown after an action when the page
+keeps its scroll position, see static/js/preserve-scroll.js)
+   ========================================================== */
+
+.flash-toast-container {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 1000;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: opacity 0.4s ease;
+}
+
+.flash-toast-container .flash-toast {
+    margin: 0;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+
+.flash-toast-container.flash-toast-hidden {
+    opacity: 0;
+}
+
+
+/* ==========================================================
+DASHBOARD OVERVIEW: incidents by status and by category
+   ========================================================== */
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    margin-bottom: 22px;
+}
+
+.overview-grid .panel {
+    margin-bottom: 0;
+}
+
+.distribution-list {
+    padding: 8px 20px 18px;
+}
+
+.distribution-row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr) 60px;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 6px;
+}
+
+.distribution-row:hover .distribution-label {
+    color: var(--color-primary);
+}
+
+.distribution-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.distribution-bar {
+    height: 10px;
+    background: #eef2f7;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.distribution-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+
+.distribution-count {
+    text-align: right;
+    font-size: 13px;
+    font-weight: 700;
+    color: #172338;
+}
+
+.status-fill-new { background: #ef4444; }
+.status-fill-in-progress { background: #f59e0b; }
+.status-fill-resolved { background: #22c55e; }
+.status-fill-closed { background: #64748b; }
+
+.category-fill-dos { background: #f97316; }
+.category-fill-exploitation { background: #dc2626; }
+.category-fill-reconnaissance { background: #2563eb; }
+.category-fill-other { background: #eab308; }
+
+@media (max-width: 1050px) {
+    .overview-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 650px) {
+    .distribution-row {
+        grid-template-columns: 120px minmax(0, 1fr) 48px;
     }
 }

@@ -77,6 +77,23 @@ def initialize_database():
             schema = file.read()
 
         connection.executescript(schema)
+        
+                # Migrate users.must_change_password.
+        user_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(users)"
+            ).fetchall()
+        }
+
+        if "must_change_password" not in user_columns:
+            connection.execute(
+                """
+                ALTER TABLE users
+                ADD COLUMN must_change_password BOOLEAN NOT NULL DEFAULT 0
+                CHECK (must_change_password IN (0, 1))
+                """
+            )
 
         # Migrate incidents.category.
         incident_columns = {
@@ -179,7 +196,8 @@ def get_active_user(user_id):
                 user_id AS id,
                 username,
                 role,
-                is_active
+                is_active,
+                must_change_password
             FROM users
             WHERE user_id = ?
             AND is_active = 1
@@ -209,6 +227,11 @@ def get_users():
                 username,
                 role,
                 is_active,
+                must_change_password,
+                CASE
+                    WHEN username = 'deleted_user_' || user_id THEN 1
+                    ELSE 0
+                END AS is_deleted,
                 created_at
             FROM users
             ORDER BY user_id
@@ -340,12 +363,13 @@ def create_user(username, password, role):
     try:
         cursor = connection.execute(
             """
-            INSERT INTO users (
+                INSERT INTO users (
                 username,
                 password_hash,
-                role
+                role,
+                must_change_password
             )
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, 1)
             """,
             (username, password_hash, role)
         )
@@ -365,15 +389,134 @@ def create_user(username, password, role):
         connection.close()
 
 
-def set_user_active(user_id, is_active):
-    """Activate or deactivate a user account."""
+MIN_PASSWORD_LENGTH = 8
+
+
+def change_password(user_id, current_password, new_password):
+    """
+    Let a user replace their own password.
+
+    The current password must be confirmed. After the change the
+    must_change_password flag is cleared, so a temporary password set by
+    an Administrator is no longer valid.
+    """
+
+    if not current_password or not new_password:
+        raise ValueError("All password fields are required.")
+
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            "Password must be at least 8 characters long."
+        )
+
+    if new_password == current_password:
+        raise ValueError(
+            "The new password must be different from the current password."
+        )
 
     connection = get_connection()
 
     try:
+        connection.execute("BEGIN IMMEDIATE")
+
         user = connection.execute(
             """
-            SELECT user_id, role, is_active
+            SELECT password_hash
+            FROM users
+            WHERE user_id = ?
+            AND is_active = 1
+            """,
+            (user_id,)
+        ).fetchone()
+
+        if user is None:
+            raise ValueError("Active user not found.")
+
+        if not check_password_hash(user["password_hash"], current_password):
+            raise ValueError("The current password is incorrect.")
+
+        connection.execute(
+            """
+            UPDATE users
+            SET password_hash = ?,
+                must_change_password = 0
+            WHERE user_id = ?
+            """,
+            (generate_password_hash(new_password), user_id)
+        )
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def reset_user_password(user_id, temporary_password):
+    """
+    Set a temporary password for another user (Administrator action).
+
+    The user must replace the temporary password at the next login, so the
+    Administrator does not keep knowing the user's personal password.
+    """
+
+    if not temporary_password:
+        raise ValueError("A temporary password is required.")
+
+    if len(temporary_password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            "Password must be at least 8 characters long."
+        )
+
+    connection = get_connection()
+
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE users
+            SET password_hash = ?,
+                must_change_password = 1
+            WHERE user_id = ?
+            AND is_active = 1
+            """,
+            (generate_password_hash(temporary_password), user_id)
+        )
+
+        if cursor.rowcount == 0:
+            raise ValueError("Active user not found.")
+
+        connection.commit()
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def set_user_active(user_id, is_active):
+    """
+    Activate or deactivate a user account.
+
+    A deactivated user cannot log in and is signed out at the next request,
+    while the account and its comments are preserved. The last active
+    Administrator cannot be deactivated, and accounts that were anonymized
+    by delete_user() cannot be activated again.
+    """
+
+    connection = get_connection()
+
+    try:
+        # Keep the checks and the update in one transaction.
+        connection.execute("BEGIN IMMEDIATE")
+
+        user = connection.execute(
+            """
+            SELECT user_id, username, role, is_active
             FROM users
             WHERE user_id = ?
             """,
@@ -382,6 +525,9 @@ def set_user_active(user_id, is_active):
 
         if user is None:
             raise ValueError("User not found.")
+
+        if is_active and user["username"] == f"deleted_user_{user_id}":
+            raise ValueError("Deleted accounts cannot be activated.")
 
         if (
             not is_active
@@ -982,6 +1128,7 @@ def get_incidents_page(
     search=None,
     severity=None,
     status=None,
+    category=None,
     limit=20,
     offset=0
 ):
@@ -1015,6 +1162,11 @@ def get_incidents_page(
         if status in VALID_STATUSES:
             where_clause += " AND incidents.status = ?"
             parameters.append(status)
+            
+        
+        if category in VALID_CATEGORIES:
+            where_clause += " AND incidents.category = ?"
+            parameters.append(category)
 
         total = connection.execute(
             f"""
@@ -1065,77 +1217,6 @@ def get_incidents_page(
         connection.close()
 
 
-def get_incidents(
-    search=None,
-    severity=None,
-    status=None,
-    limit=500
-):
-    """Return incidents with their most recent comment."""
-
-    limit = max(1, min(int(limit), 5000))
-    connection = get_connection()
-
-    try:
-        query = """
-            SELECT
-                incidents.incident_id AS id,
-                incidents.source_record_id,
-                incidents.category,
-                incidents.severity,
-                incidents.status,
-                incidents.description,
-                incidents.created_at AS detected_at,
-                (
-                    SELECT incident_comments.comment_text
-                    FROM incident_comments
-                    WHERE incident_comments.incident_id =
-                        incidents.incident_id
-                    ORDER BY incident_comments.comment_id DESC
-                    LIMIT 1
-                ) AS latest_comment
-            FROM incidents
-            WHERE 1 = 1
-        """
-
-        parameters = []
-
-        if search:
-            pattern = f"%{search.strip()}%"
-            query += """
-                AND (
-                    CAST(incidents.incident_id AS TEXT) LIKE ?
-                    OR incidents.category LIKE ?
-                    OR incidents.description LIKE ?
-                    OR CAST(incidents.source_record_id AS TEXT) LIKE ?
-                )
-            """
-            parameters.extend([pattern] * 4)
-
-        if severity in VALID_SEVERITIES:
-            query += " AND incidents.severity = ?"
-            parameters.append(severity)
-
-        if status in VALID_STATUSES:
-            query += " AND incidents.status = ?"
-            parameters.append(status)
-
-        query += """
-            ORDER BY incidents.created_at DESC,
-                    incidents.incident_id DESC
-            LIMIT ?
-        """
-
-        parameters.append(limit)
-
-        rows = connection.execute(query, parameters).fetchall()
-
-        return [dict(row) for row in rows]
-
-    finally:
-        connection.close()
-
-
 def get_latest_incident_id():
     """Return the highest incident ID currently stored, or zero."""
 
@@ -1160,6 +1241,8 @@ def get_incidents_after_id(
     after_id,
     search=None,
     severity=None,
+    status=None,
+    category=None,
     limit=500
 ):
     """Return newly created incidents after an ID, in ascending order."""
@@ -1208,6 +1291,15 @@ def get_incidents_after_id(
         if severity in VALID_SEVERITIES:
             query += " AND incidents.severity = ?"
             parameters.append(severity)
+            
+        
+        if status in VALID_STATUSES:
+            query += " AND incidents.status = ?"
+            parameters.append(status)
+
+        if category in VALID_CATEGORIES:
+            query += " AND incidents.category = ?"
+            parameters.append(category)
 
         query += """
             ORDER BY incidents.incident_id ASC
@@ -1489,7 +1581,16 @@ def get_dashboard_statistics():
                 SUM(CASE WHEN severity = 'Medium' THEN 1 ELSE 0 END)
                     AS medium,
                 SUM(CASE WHEN severity = 'Low' THEN 1 ELSE 0 END)
-                    AS low
+                    AS low,
+                SUM(CASE WHEN category = 'Dos / DDoS' THEN 1 ELSE 0 END)
+                    AS category_dos,
+                SUM(CASE WHEN category = 'Reconnaissance' THEN 1 ELSE 0 END)
+                    AS category_reconnaissance,
+                SUM(CASE WHEN category = 'Exploitation' THEN 1 ELSE 0 END)
+                    AS category_exploitation,
+                SUM(CASE WHEN category = 'Other suspicious activity'
+                    THEN 1 ELSE 0 END)
+                    AS category_other
             FROM incidents
             """
         ).fetchone()

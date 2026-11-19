@@ -1,0 +1,19 @@
+﻿configuration,attack_cat,attacks,detected,missed,detection_rate
+Version 1,Analysis,114,44,70,0.38596491228070173
+Version 1,Backdoors,112,44,68,0.39285714285714285
+Version 1,DoS,209,56,153,0.2679425837320574
+Version 1,Exploits,1050,178,872,0.16952380952380952
+Version 1,Fuzzers,997,218,779,0.21865596790371114
+Version 1,Generic,1554,206,1348,0.13256113256113256
+Version 1,Reconnaissance,353,48,305,0.1359773371104816
+Version 1,Shellcode,52,22,30,0.4230769230769231
+Version 1,Worms,2,0,2,0.0
+Proposed,Analysis,114,114,0,1.0
+Proposed,Backdoors,112,110,2,0.9821428571428571
+Proposed,DoS,209,204,5,0.9760765550239234
+Proposed,Exploits,1050,1028,22,0.979047619047619
+Proposed,Fuzzers,997,984,13,0.9869608826479438
+Proposed,Generic,1554,1553,1,0.9993564993564994
+Proposed,Reconnaissance,353,350,3,0.9915014164305949
+Proposed,Shellcode,52,52,0,1.0
+Proposed,Worms,2,2,0,1.0
