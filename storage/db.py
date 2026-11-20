@@ -1075,9 +1075,10 @@ def save_detection_results(
                 )
 
             # Build the incident description from matched rules.
-            description = "; ".join(
-                rule.description or ""
+            description = " ".join(
+                rule.description.strip()
                 for rule in matched_rules
+                if rule.description
             )
 
             # insert one incident

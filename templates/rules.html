@@ -236,77 +236,59 @@
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
-
         <div class="sidebar-brand">
-
-            <div class="brand-icon">✚</div>
-
+            <div class="brand-icon">C</div>
             <div>
-                <h2>Cybersecurity IMS</h2>
-                <span>Incident Management</span>
+                <h2>CSIMS</h2>
+                <span>Security Operations</span>
             </div>
-
         </div>
 
-        <div class="sidebar-section">Main Menu</div>
+        <div class="sidebar-section">WORKSPACE</div>
 
         <nav class="sidebar-nav">
-
             <a href="{{ url_for('dashboard') }}" class="nav-link">
-                <span class="nav-icon">⌂</span>
+                <span class="nav-icon">▦</span>
                 Dashboard
             </a>
 
             <a href="{{ url_for('incidents') }}" class="nav-link">
-                <span class="nav-icon">♟</span>
+                <span class="nav-icon">◈</span>
                 Incidents
             </a>
 
-        </nav>
-
-        <div class="sidebar-section">Administration</div>
-
-        <nav class="sidebar-nav">
-
-            <a href="{{ url_for('admin_panel') }}" class="nav-link">
-                <span class="nav-icon">♙</span>
-                Users
-            </a>
+            {% if session.get('role') == 'Administrator' %}
+            <div class="sidebar-section">ADMINISTRATION</div>
 
             <a href="{{ url_for('rules') }}" class="nav-link active">
                 <span class="nav-icon">⚙</span>
                 Detection Rules
             </a>
 
+            <a href="{{ url_for('admin_panel') }}" class="nav-link">
+                <span class="nav-icon">♙</span>
+                Users
+            </a>
+            {% endif %}
         </nav>
 
         <div class="sidebar-bottom">
-
             <div class="user-avatar">
                 {{ session.get('user', 'U')[0]|upper }}
             </div>
-
             <div class="user-info">
                 <strong>{{ session.get('user', 'User') }}</strong>
                 <span>{{ session.get('role', '') }}</span>
             </div>
-
             <a href="{{ url_for('change_password_page') }}"
                class="logout-link"
                title="Change password"
                style="margin-right: 10px;">⚿</a>
             <form method="POST" action="{{ url_for('logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-                <button type="submit"
-                    class="logout-link"
-                    title="Sign out">
-                    ↪
-                </button>
+                <button type="submit" class="logout-link" title="Logout">↪</button>
             </form>
-
         </div>
-
     </aside>
 
 
